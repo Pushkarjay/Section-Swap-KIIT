@@ -5,23 +5,28 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 require('dotenv').config();
 
-// Database imports - support both MySQL and PostgreSQL
-let mysql, pg, pool;
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-// Determine database type based on environment
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static('.'));
+
+// Database setup - auto-detect PostgreSQL or MySQL
+let pool;
 const isPostgreSQL = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgres');
 
 if (isPostgreSQL) {
-    // PostgreSQL setup for Render
-    pg = require('pg');
-    const { Pool } = pg;
+    console.log('🐘 Using PostgreSQL for production');
+    const { Pool } = require('pg');
     pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     });
 } else {
-    // MySQL setup for local development
-    mysql = require('mysql2/promise');
+    console.log('🐬 Using MySQL for local development');
+    const mysql = require('mysql2/promise');
     if (process.env.DATABASE_URL) {
         const url = new URL(process.env.DATABASE_URL);
         pool = mysql.createPool({
@@ -47,72 +52,133 @@ if (isPostgreSQL) {
     }
 }
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware
-app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static('.'));
+// Database helper functions
+async function executeQuery(query, params = []) {
+    if (isPostgreSQL) {
+        const client = await pool.connect();
+        try {
+            const result = await client.query(query, params);
+            return [result.rows];
+        } finally {
+            client.release();
+        }
+    } else {
+        const connection = await pool.getConnection();
+        try {
+            const [rows] = await connection.execute(query, params);
+            return [rows];
+        } finally {
+            connection.release();
+        }
+    }
+}
 
 // Initialize Database
 async function initializeDatabase() {
     try {
-        const connection = await pool.getConnection();
+        console.log('🔌 Initializing database...');
         
-        // Create database if not exists
-        await connection.execute(`CREATE DATABASE IF NOT EXISTS section_swap_db`);
-        await connection.execute(`USE section_swap_db`);
+        if (isPostgreSQL) {
+            // PostgreSQL table creation
+            await executeQuery(`
+                CREATE TABLE IF NOT EXISTS students (
+                    id SERIAL PRIMARY KEY,
+                    roll_number VARCHAR(50) UNIQUE NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    phone_number VARCHAR(20),
+                    email VARCHAR(100),
+                    password_hash VARCHAR(255) NOT NULL,
+                    current_section VARCHAR(10) NOT NULL,
+                    desired_section VARCHAR(10),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            
+            await executeQuery(`
+                CREATE TABLE IF NOT EXISTS swap_requests (
+                    id SERIAL PRIMARY KEY,
+                    requester_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+                    target_section VARCHAR(10) NOT NULL,
+                    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'cancelled')),
+                    swap_type VARCHAR(10) DEFAULT 'direct' CHECK (swap_type IN ('direct', 'multi')),
+                    swap_path TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            
+            await executeQuery(`
+                CREATE TABLE IF NOT EXISTS swap_history (
+                    id SERIAL PRIMARY KEY,
+                    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+                    from_section VARCHAR(10) NOT NULL,
+                    to_section VARCHAR(10) NOT NULL,
+                    swap_partner_id INTEGER REFERENCES students(id) ON DELETE SET NULL,
+                    swap_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            
+            console.log('✅ PostgreSQL tables created successfully');
+        } else {
+            // MySQL table creation
+            const connection = await pool.getConnection();
+            try {
+                await connection.execute(`CREATE DATABASE IF NOT EXISTS section_swap_db`);
+                await connection.execute(`USE section_swap_db`);
+                
+                await connection.execute(`
+                    CREATE TABLE IF NOT EXISTS students (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        roll_number VARCHAR(20) UNIQUE NOT NULL,
+                        name VARCHAR(100) NOT NULL,
+                        phone_number VARCHAR(15) NOT NULL,
+                        email VARCHAR(100),
+                        password_hash VARCHAR(255) NOT NULL,
+                        current_section VARCHAR(10) NOT NULL,
+                        desired_section VARCHAR(10),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    )
+                `);
+                
+                await connection.execute(`
+                    CREATE TABLE IF NOT EXISTS swap_requests (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        requester_id INT NOT NULL,
+                        target_section VARCHAR(10) NOT NULL,
+                        status ENUM('pending', 'completed', 'cancelled') DEFAULT 'pending',
+                        swap_type ENUM('direct', 'multi') DEFAULT 'direct',
+                        swap_path JSON,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        FOREIGN KEY (requester_id) REFERENCES students(id)
+                    )
+                `);
+                
+                await connection.execute(`
+                    CREATE TABLE IF NOT EXISTS swap_history (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        student_id INT NOT NULL,
+                        from_section VARCHAR(10) NOT NULL,
+                        to_section VARCHAR(10) NOT NULL,
+                        swap_partner_id INT,
+                        swap_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (student_id) REFERENCES students(id),
+                        FOREIGN KEY (swap_partner_id) REFERENCES students(id)
+                    )
+                `);
+                
+                console.log('✅ MySQL tables created successfully');
+            } finally {
+                connection.release();
+            }
+        }
         
-        // Create students table
-        await connection.execute(`
-            CREATE TABLE IF NOT EXISTS students (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                roll_number VARCHAR(20) UNIQUE NOT NULL,
-                name VARCHAR(100) NOT NULL,
-                phone_number VARCHAR(15) NOT NULL,
-                email VARCHAR(100),
-                password_hash VARCHAR(255) NOT NULL,
-                current_section VARCHAR(10) NOT NULL,
-                desired_section VARCHAR(10),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )
-        `);
-        
-        // Create swap_requests table
-        await connection.execute(`
-            CREATE TABLE IF NOT EXISTS swap_requests (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                requester_id INT NOT NULL,
-                target_section VARCHAR(10) NOT NULL,
-                status ENUM('pending', 'completed', 'cancelled') DEFAULT 'pending',
-                swap_type ENUM('direct', 'multi') DEFAULT 'direct',
-                swap_path JSON,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                FOREIGN KEY (requester_id) REFERENCES students(id)
-            )
-        `);
-        
-        // Create swap_history table
-        await connection.execute(`
-            CREATE TABLE IF NOT EXISTS swap_history (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                student_id INT NOT NULL,
-                from_section VARCHAR(10) NOT NULL,
-                to_section VARCHAR(10) NOT NULL,
-                swap_partner_id INT,
-                swap_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (student_id) REFERENCES students(id),
-                FOREIGN KEY (swap_partner_id) REFERENCES students(id)
-            )
-        `);
-        
-        connection.release();
-        console.log('Database initialized successfully');
+        console.log('🎉 Database initialization completed');
     } catch (error) {
-        console.error('Error initializing database:', error);
+        console.error('❌ Database initialization failed:', error);
+        throw error;
     }
 }
 
@@ -143,14 +209,22 @@ app.post('/api/register', async (req, res) => {
         const saltRounds = 10;
         const passwordHash = await bcrypt.hash(password, saltRounds);
         
-        const [result] = await pool.execute(
-            'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section) VALUES (?, ?, ?, ?, ?, ?)',
-            [rollNumber, name, phoneNumber, email, passwordHash, currentSection]
-        );
-        
-        res.status(201).json({ message: 'Student registered successfully', id: result.insertId });
+        if (isPostgreSQL) {
+            const [result] = await executeQuery(
+                'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+                [rollNumber, name, phoneNumber, email, passwordHash, currentSection]
+            );
+            res.status(201).json({ message: 'Student registered successfully', id: result[0].id });
+        } else {
+            const [result] = await executeQuery(
+                'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section) VALUES (?, ?, ?, ?, ?, ?)',
+                [rollNumber, name, phoneNumber, email, passwordHash, currentSection]
+            );
+            res.status(201).json({ message: 'Student registered successfully', id: result.insertId });
+        }
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') {
+        console.error('Registration error:', error);
+        if (error.code === 'ER_DUP_ENTRY' || error.code === '23505') {
             res.status(400).json({ error: 'Roll number already exists' });
         } else {
             res.status(500).json({ error: 'Registration failed' });
@@ -163,8 +237,8 @@ app.post('/api/login', async (req, res) => {
     try {
         const { rollNumber, password } = req.body;
         
-        const [rows] = await pool.execute(
-            'SELECT * FROM students WHERE roll_number = ?',
+        const [rows] = await executeQuery(
+            isPostgreSQL ? 'SELECT * FROM students WHERE roll_number = $1' : 'SELECT * FROM students WHERE roll_number = ?',
             [rollNumber]
         );
         
@@ -197,6 +271,7 @@ app.post('/api/login', async (req, res) => {
             }
         });
     } catch (error) {
+        console.error('Login error:', error);
         res.status(500).json({ error: 'Login failed' });
     }
 });
