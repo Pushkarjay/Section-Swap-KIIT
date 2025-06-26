@@ -105,7 +105,7 @@ async function initializeDatabase() {
                     email VARCHAR(100),
                     password_hash VARCHAR(255) NOT NULL,
                     current_section VARCHAR(10) NOT NULL,
-                    desired_section VARCHAR(10),
+                    desired_sections TEXT, -- JSON array of sections in priority order
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -152,7 +152,7 @@ async function initializeDatabase() {
                         email VARCHAR(100),
                         password_hash VARCHAR(255) NOT NULL,
                         current_section VARCHAR(10) NOT NULL,
-                        desired_section VARCHAR(10),
+                        desired_sections JSON, -- Array of sections in priority order
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                     )
@@ -277,22 +277,25 @@ async function sendSwapNotification(toEmail, studentName, partnerName, partnerRo
 // Register new student
 app.post('/api/register', async (req, res) => {
     try {
-        const { rollNumber, name, phoneNumber, email, password, currentSection } = req.body;
+        const { rollNumber, name, phoneNumber, email, password, currentSection, desiredSections } = req.body;
         
         // Hash password
         const saltRounds = 10;
         const passwordHash = await bcrypt.hash(password, saltRounds);
         
+        // Convert desired sections array to JSON string
+        const desiredSectionsJson = JSON.stringify(desiredSections || []);
+        
         if (isPostgreSQL) {
             const [result] = await executeQuery(
-                'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-                [rollNumber, name, phoneNumber, email, passwordHash, currentSection]
+                'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section, desired_sections) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+                [rollNumber, name, phoneNumber, email, passwordHash, currentSection, desiredSectionsJson]
             );
             res.status(201).json({ message: 'Student registered successfully', id: result[0].id });
         } else {
             const [result] = await executeQuery(
-                'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section) VALUES (?, ?, ?, ?, ?, ?)',
-                [rollNumber, name, phoneNumber, email, passwordHash, currentSection]
+                'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section, desired_sections) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [rollNumber, name, phoneNumber, email, passwordHash, currentSection, desiredSectionsJson]
             );
             res.status(201).json({ message: 'Student registered successfully', id: result.insertId });
         }
@@ -341,7 +344,7 @@ app.post('/api/login', async (req, res) => {
                 rollNumber: student.roll_number,
                 name: student.name,
                 currentSection: student.current_section,
-                desiredSection: student.desired_section
+                desiredSections: student.desired_sections ? JSON.parse(student.desired_sections) : []
             }
         });
     } catch (error) {
@@ -355,8 +358,8 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
     try {
         const [rows] = await executeQuery(
             isPostgreSQL ? 
-                'SELECT id, roll_number, name, phone_number, email, current_section, desired_section, created_at FROM students WHERE id = $1' :
-                'SELECT id, roll_number, name, phone_number, email, current_section, desired_section, created_at FROM students WHERE id = ?',
+                'SELECT id, roll_number, name, phone_number, email, current_section, desired_sections, created_at FROM students WHERE id = $1' :
+                'SELECT id, roll_number, name, phone_number, email, current_section, desired_sections, created_at FROM students WHERE id = ?',
             [req.user.id]
         );
         
@@ -364,7 +367,11 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Student not found' });
         }
         
-        res.json(rows[0]);
+        const student = rows[0];
+        res.json({
+            ...student,
+            desired_sections: student.desired_sections ? JSON.parse(student.desired_sections) : []
+        });
     } catch (error) {
         console.error('Profile fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch profile' });
@@ -374,13 +381,16 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 // Update profile
 app.put('/api/profile', authenticateToken, async (req, res) => {
     try {
-        const { name, phoneNumber, email, desiredSection } = req.body;
+        const { name, phoneNumber, email, desiredSections } = req.body;
+        
+        // Convert desired sections array to JSON string
+        const desiredSectionsJson = JSON.stringify(desiredSections || []);
         
         await executeQuery(
             isPostgreSQL ?
-                'UPDATE students SET name = $1, phone_number = $2, email = $3, desired_section = $4 WHERE id = $5' :
-                'UPDATE students SET name = ?, phone_number = ?, email = ?, desired_section = ? WHERE id = ?',
-            [name, phoneNumber, email, desiredSection, req.user.id]
+                'UPDATE students SET name = $1, phone_number = $2, email = $3, desired_sections = $4 WHERE id = $5' :
+                'UPDATE students SET name = ?, phone_number = ?, email = ?, desired_sections = ? WHERE id = ?',
+            [name, phoneNumber, email, desiredSectionsJson, req.user.id]
         );
         
         res.json({ message: 'Profile updated successfully' });
@@ -393,7 +403,7 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
 // Find swap options
 app.post('/api/find-swap', authenticateToken, async (req, res) => {
     try {
-        const { desiredSection } = req.body;
+        const { desiredSection } = req.body; // Single section for immediate search
         
         // Get current student info
         const [currentStudent] = await executeQuery(
@@ -407,25 +417,190 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
         
         const student = currentStudent[0];
         
-        // Check for direct swap
-        const [directSwapPartners] = await executeQuery(
-            isPostgreSQL ? `
-                SELECT id, roll_number, name, current_section, desired_section 
-                FROM students 
-                WHERE current_section = $1 AND desired_section = $2 AND id != $3
-            ` : `
-                SELECT id, roll_number, name, current_section, desired_section 
-                FROM students 
-                WHERE current_section = ? AND desired_section = ? AND id != ?
-            `,
-            [desiredSection, student.current_section, student.id]
+        // If searching for a specific section, use that; otherwise use priority list
+        const sectionsToSearch = desiredSection ? [desiredSection] : 
+            (student.desired_sections ? JSON.parse(student.desired_sections) : []);
+        
+        if (sectionsToSearch.length === 0) {
+            return res.json({ type: 'none', message: 'No desired sections specified' });
+        }
+        
+        // Check each desired section in priority order
+        for (const targetSection of sectionsToSearch) {
+            if (targetSection === student.current_section) {
+                continue; // Skip if already in desired section
+            }
+            
+            // Check for direct swap
+            const [directSwapPartners] = await executeQuery(
+                isPostgreSQL ? `
+                    SELECT id, roll_number, name, current_section, desired_sections 
+                    FROM students 
+                    WHERE current_section = $1 AND id != $2
+                ` : `
+                    SELECT id, roll_number, name, current_section, desired_sections 
+                    FROM students 
+                    WHERE current_section = ? AND id != ?
+                `,
+                [targetSection, student.id]
+            );
+            
+            // Find partners who want student's current section
+            const directPartner = directSwapPartners.find(partner => {
+                if (!partner.desired_sections) return false;
+                try {
+                    const partnerDesired = JSON.parse(partner.desired_sections);
+                    return partnerDesired.includes(student.current_section);
+                } catch (e) {
+                    return false;
+                }
+            });
+            
+            if (directPartner) {
+                // Send email notification if student has email
+                if (student.email) {
+                    await sendSwapNotification(
+                        student.email,
+                        student.name,
+                        directPartner.name,
+                        directPartner.roll_number,
+                        directPartner.current_section,
+                        student.current_section,
+                        targetSection,
+                        'direct'
+                    );
+                }
+                
+                return res.json({
+                    type: 'direct',
+                    partner: directPartner,
+                    targetSection: targetSection
+                });
+            }
+            
+            // Find multi-step swap for this section
+            const swapPath = await findMultiStepSwap(student.current_section, targetSection, student.id);
+            
+            if (swapPath) {
+                // Send email notification for multi-step swap
+                if (student.email && swapPath.length > 0) {
+                    const firstStep = swapPath[0];
+                    await sendSwapNotification(
+                        student.email,
+                        student.name,
+                        firstStep.student ? firstStep.student.name : 'Multiple Students',
+                        firstStep.student ? firstStep.student.roll_number : 'Various',
+                        firstStep.from,
+                        student.current_section,
+                        targetSection,
+                        'multi-step'
+                    );
+                }
+                
+                return res.json({
+                    type: 'multi',
+                    path: swapPath,
+                    targetSection: targetSection
+                });
+            }
+        }
+        
+        res.json({ 
+            type: 'none', 
+            message: `No swaps found for any of your desired sections: ${sectionsToSearch.join(', ')}` 
+        });
+    } catch (error) {
+        console.error('Find swap error:', error);
+        res.status(500).json({ error: 'Failed to find swap options' });
+    }
+});
+
+// Find swaps automatically across all desired sections
+app.post('/api/find-all-swaps', authenticateToken, async (req, res) => {
+    try {
+        // Get current student info
+        const [currentStudent] = await executeQuery(
+            isPostgreSQL ? 'SELECT * FROM students WHERE id = $1' : 'SELECT * FROM students WHERE id = ?',
+            [req.user.id]
         );
         
-        if (directSwapPartners.length > 0) {
-            const partner = directSwapPartners[0];
+        if (currentStudent.length === 0) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+        
+        const student = currentStudent[0];
+        const desiredSections = student.desired_sections ? JSON.parse(student.desired_sections) : [];
+        
+        if (desiredSections.length === 0) {
+            return res.json({ 
+                type: 'none', 
+                message: 'No desired sections specified. Please update your profile to add desired sections.' 
+            });
+        }
+        
+        const swapResults = [];
+        
+        // Check each desired section in priority order
+        for (let i = 0; i < desiredSections.length; i++) {
+            const targetSection = desiredSections[i];
             
-            // Send email notification if student has email
-            if (student.email) {
+            if (targetSection === student.current_section) {
+                continue; // Skip if already in desired section
+            }
+            
+            // Check for direct swap
+            const [directSwapPartners] = await executeQuery(
+                isPostgreSQL ? `
+                    SELECT id, roll_number, name, current_section, desired_sections 
+                    FROM students 
+                    WHERE current_section = $1 AND id != $2
+                ` : `
+                    SELECT id, roll_number, name, current_section, desired_sections 
+                    FROM students 
+                    WHERE current_section = ? AND id != ?
+                `,
+                [targetSection, student.id]
+            );
+            
+            // Find partners who want student's current section
+            const directPartners = directSwapPartners.filter(partner => {
+                if (!partner.desired_sections) return false;
+                try {
+                    const partnerDesired = JSON.parse(partner.desired_sections);
+                    return partnerDesired.includes(student.current_section);
+                } catch (e) {
+                    return false;
+                }
+            });
+            
+            if (directPartners.length > 0) {
+                swapResults.push({
+                    type: 'direct',
+                    targetSection: targetSection,
+                    priority: i + 1,
+                    partners: directPartners
+                });
+            }
+            
+            // Find multi-step swap for this section
+            const swapPath = await findMultiStepSwap(student.current_section, targetSection, student.id);
+            
+            if (swapPath) {
+                swapResults.push({
+                    type: 'multi',
+                    targetSection: targetSection,
+                    priority: i + 1,
+                    path: swapPath
+                });
+            }
+        }
+        
+        // Send email notification for the highest priority swap found
+        if (swapResults.length > 0 && student.email) {
+            const bestSwap = swapResults[0]; // First result has highest priority
+            
+            if (bestSwap.type === 'direct') {
+                const partner = bestSwap.partners[0];
                 await sendSwapNotification(
                     student.email,
                     student.name,
@@ -433,24 +608,11 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
                     partner.roll_number,
                     partner.current_section,
                     student.current_section,
-                    desiredSection,
+                    bestSwap.targetSection,
                     'direct'
                 );
-            }
-            
-            return res.json({
-                type: 'direct',
-                partner: partner
-            });
-        }
-        
-        // Find multi-step swap
-        const swapPath = await findMultiStepSwap(student.current_section, desiredSection, student.id);
-        
-        if (swapPath) {
-            // Send email notification for multi-step swap
-            if (student.email && swapPath.length > 0) {
-                const firstStep = swapPath[0];
+            } else if (bestSwap.type === 'multi') {
+                const firstStep = bestSwap.path[0];
                 await sendSwapNotification(
                     student.email,
                     student.name,
@@ -458,20 +620,27 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
                     firstStep.student ? firstStep.student.roll_number : 'Various',
                     firstStep.from,
                     student.current_section,
-                    desiredSection,
+                    bestSwap.targetSection,
                     'multi-step'
                 );
             }
-            
-            return res.json({
-                type: 'multi',
-                path: swapPath
-            });
         }
         
-        res.json({ type: 'none' });
+        if (swapResults.length === 0) {
+            res.json({ 
+                type: 'none', 
+                message: `No swaps found for any of your desired sections: ${desiredSections.join(', ')}`,
+                desiredSections: desiredSections
+            });
+        } else {
+            res.json({
+                type: 'multiple',
+                swaps: swapResults,
+                desiredSections: desiredSections
+            });
+        }
     } catch (error) {
-        console.error('Find swap error:', error);
+        console.error('Find all swaps error:', error);
         res.status(500).json({ error: 'Failed to find swap options' });
     }
 });
@@ -536,16 +705,25 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
         
         // Get all students for swap sheet
         const [allStudents] = await executeQuery(`
-            SELECT roll_number, name, current_section, desired_section
+            SELECT roll_number, name, current_section, desired_sections
             FROM students
             ORDER BY roll_number
         `);
         
+        // Parse desired_sections for each student
+        const studentsWithParsedSections = allStudents.map(student => ({
+            ...student,
+            desired_sections: student.desired_sections ? JSON.parse(student.desired_sections) : []
+        }));
+        
         res.json({
-            student: student[0],
+            student: {
+                ...student[0],
+                desired_sections: student[0].desired_sections ? JSON.parse(student[0].desired_sections) : []
+            },
             pendingRequests: pendingRequests.length,
             totalSwaps: historyCount[0].count,
-            allStudents
+            allStudents: studentsWithParsedSections
         });
     } catch (error) {
         console.error('Dashboard error:', error);
@@ -557,22 +735,45 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
 async function findMultiStepSwap(fromSection, toSection, excludeId) {
     try {
         // Get all students and their desired swaps
-        const [students] = await pool.execute(`
-            SELECT id, roll_number, name, current_section, desired_section 
-            FROM students 
-            WHERE current_section != desired_section AND id != ?
-        `, [excludeId]);
+        const [students] = await executeQuery(
+            isPostgreSQL ? `
+                SELECT id, roll_number, name, current_section, desired_sections 
+                FROM students 
+                WHERE id != $1
+            ` : `
+                SELECT id, roll_number, name, current_section, desired_sections 
+                FROM students 
+                WHERE id != ?
+            `,
+            [excludeId]
+        );
         
         // Create graph
         const graph = {};
         const studentMap = {};
         
         students.forEach(student => {
-            if (!graph[student.current_section]) {
-                graph[student.current_section] = [];
+            if (!student.desired_sections) return;
+            
+            try {
+                const desiredSections = JSON.parse(student.desired_sections);
+                if (!Array.isArray(desiredSections) || desiredSections.length === 0) return;
+                
+                if (!graph[student.current_section]) {
+                    graph[student.current_section] = [];
+                }
+                
+                // Add all desired sections as possible moves
+                desiredSections.forEach(desired => {
+                    if (desired !== student.current_section) {
+                        graph[student.current_section].push(desired);
+                    }
+                });
+                
+                studentMap[student.current_section] = student;
+            } catch (e) {
+                console.error('Error parsing desired_sections for student:', student.id, e);
             }
-            graph[student.current_section].push(student.desired_section);
-            studentMap[student.current_section] = student;
         });
         
         // BFS to find path

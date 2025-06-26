@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS students (
     email VARCHAR(100),
     password_hash VARCHAR(255) NOT NULL,
     current_section VARCHAR(10) NOT NULL,
-    desired_section VARCHAR(10),
+    desired_sections TEXT, -- JSON array of sections in priority order
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -43,7 +43,6 @@ CREATE TABLE IF NOT EXISTS swap_history (
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_students_roll ON students(roll_number);
 CREATE INDEX IF NOT EXISTS idx_students_current_section ON students(current_section);
-CREATE INDEX IF NOT EXISTS idx_students_desired_section ON students(desired_section);
 CREATE INDEX IF NOT EXISTS idx_swap_requests_status ON swap_requests(status);
 CREATE INDEX IF NOT EXISTS idx_swap_history_date ON swap_history(swap_date);
 

@@ -13,12 +13,11 @@ CREATE TABLE IF NOT EXISTS students (
     email VARCHAR(100),
     password_hash VARCHAR(255) NOT NULL,
     current_section VARCHAR(10) NOT NULL,
-    desired_section VARCHAR(10),
+    desired_sections JSON, -- Array of sections in priority order
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_roll_number (roll_number),
-    INDEX idx_current_section (current_section),
-    INDEX idx_desired_section (desired_section)
+    INDEX idx_current_section (current_section)
 );
 
 -- Swap requests table

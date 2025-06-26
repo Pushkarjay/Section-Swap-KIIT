@@ -262,6 +262,83 @@
             border: 1px solid #dee2e6;
         }
         
+        /* Desired Sections Styling */
+        #desired-sections-container {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
+        
+        .desired-section-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: white;
+            border-radius: 3px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .desired-section-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .desired-section-select {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            margin-right: 10px;
+        }
+        
+        .remove-section {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            line-height: 1;
+        }
+        
+        .remove-section:hover {
+            background-color: #c82333;
+        }
+        
+        .priority-indicator {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-right: 10px;
+            min-width: 20px;
+            text-align: center;
+        }
+        
+        #dash-desired-sections .priority-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        #dash-desired-sections .priority-item {
+            display: flex;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        #dash-desired-sections .priority-item:last-child {
+            border-bottom: none;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -338,6 +415,19 @@
                         <option value="">Select your current section</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label for="reg-desired-sections">Desired Sections (Optional)</label>
+                    <div id="reg-desired-sections-container">
+                        <div class="desired-section-item">
+                            <select class="desired-section-select">
+                                <option value="">Select section</option>
+                            </select>
+                            <button type="button" class="remove-section" onclick="removeDesiredSection(this)" style="display:none;">×</button>
+                        </div>
+                    </div>
+                    <button type="button" id="reg-add-desired-section" class="btn-secondary" style="margin-top: 10px;">+ Add Section</button>
+                    <p style="font-size: 12px; color: #666; margin-top: 5px;">Add sections in order of preference. You can add these later in your profile.</p>
+                </div>
                 <button type="submit">Register</button>
                 <div class="form-group" style="margin-top: 15px;">
                     <p>Already have an account? <a href="#" id="show-login">Login here</a></p>
@@ -354,8 +444,10 @@
                     <p id="dash-current-section">-</p>
                 </div>
                 <div class="stat-card">
-                    <h3>Desired Section</h3>
-                    <p id="dash-desired-section">-</p>
+                    <h3>Desired Sections</h3>
+                    <div id="dash-desired-sections">
+                        <p>No sections set</p>
+                    </div>
                 </div>
                 <div class="stat-card">
                     <h3>Pending Requests</h3>
@@ -369,6 +461,7 @@
             <div class="dashboard-actions">
                 <button id="view-profile-btn" class="btn-success">View Profile</button>
                 <button id="find-swap-dashboard-btn">Find Swap</button>
+                <button id="find-all-swaps-dashboard-btn" class="btn-primary">Auto-Find Swaps</button>
                 <button id="view-sheet-btn">View Swap Sheet</button>
                 <button id="logout-btn" class="btn-danger">Logout</button>
             </div>
@@ -399,10 +492,17 @@
                     <input type="text" id="profile-current-section" readonly>
                 </div>
                 <div class="form-group">
-                    <label for="profile-desired-section">Desired Section</label>
-                    <select id="profile-desired-section">
-                        <option value="">Select desired section</option>
-                    </select>
+                    <label for="profile-desired-sections">Desired Sections (Priority Order)</label>
+                    <div id="desired-sections-container">
+                        <div class="desired-section-item">
+                            <select class="desired-section-select">
+                                <option value="">Select section</option>
+                            </select>
+                            <button type="button" class="remove-section" onclick="removeDesiredSection(this)" style="display:none;">×</button>
+                        </div>
+                    </div>
+                    <button type="button" id="add-desired-section" class="btn-secondary" style="margin-top: 10px;">+ Add Section</button>
+                    <p style="font-size: 12px; color: #666; margin-top: 5px;">Add sections in order of preference. First section = highest priority.</p>
                 </div>
                 <button type="submit" class="btn-success">Update Profile</button>
                 <button type="button" id="back-to-dashboard">Back to Dashboard</button>
@@ -443,9 +543,11 @@
                     <option value="">Select desired section</option>
                     <!-- Sections will be populated dynamically -->
                 </select>
-                <div id="section-error" class="error hidden"></div>
             </div>
-            <button id="find-swap-btn">Find Swap Options</button>
+            <div class="form-group">
+                <button id="find-swap-btn" class="btn-primary">Find Swap for Specific Section</button>
+                <button id="find-all-swaps-btn" class="btn-success" style="margin-top: 10px;">Find All Available Swaps (Priority Order)</button>
+            </div>
             
             <div id="swap-results" class="hidden">
                 <h3>Swap Options</h3>
@@ -560,6 +662,7 @@
             // Dashboard buttons
             document.getElementById('view-profile-btn').addEventListener('click', showProfile);
             document.getElementById('find-swap-dashboard-btn').addEventListener('click', showSwapCard);
+            document.getElementById('find-all-swaps-dashboard-btn').addEventListener('click', findAllSwapsFromDashboard);
             document.getElementById('view-sheet-btn').addEventListener('click', showSwapSheet);
             document.getElementById('logout-btn').addEventListener('click', handleLogout);
 
@@ -569,6 +672,7 @@
 
             // Existing swap functionality
             document.getElementById('find-swap-btn').addEventListener('click', findSwapOptions);
+            document.getElementById('find-all-swaps-btn').addEventListener('click', findAllSwapsFromCard);
             document.getElementById('confirm-direct-swap').addEventListener('click', confirmDirectSwap);
             document.getElementById('confirm-multi-swap').addEventListener('click', confirmMultiSwap);
             document.getElementById('back-to-swap').addEventListener('click', showSwapCard);
@@ -631,13 +735,16 @@
         async function handleRegister(e) {
             e.preventDefault();
             
+            const desiredSections = getDesiredSectionsFromContainer('reg-desired-sections-container');
+            
             const data = {
                 rollNumber: document.getElementById('reg-roll-number').value.trim(),
                 name: document.getElementById('reg-name').value.trim(),
                 phoneNumber: document.getElementById('reg-phone').value.trim(),
                 email: document.getElementById('reg-email').value.trim(),
                 password: document.getElementById('reg-password').value,
-                currentSection: document.getElementById('reg-current-section').value
+                currentSection: document.getElementById('reg-current-section').value,
+                desiredSections: desiredSections
             };
 
             try {
@@ -679,18 +786,9 @@
                 document.getElementById('profile-email').value = profile.email || '';
                 document.getElementById('profile-current-section').value = profile.current_section;
                 
-                // Populate desired section dropdown
-                const desiredSelect = document.getElementById('profile-desired-section');
-                desiredSelect.innerHTML = '<option value="">Select desired section</option>';
-                allSections.forEach(section => {
-                    if (section !== profile.current_section) {
-                        const option = document.createElement('option');
-                        option.value = section;
-                        option.textContent = section;
-                        option.selected = section === profile.desired_section;
-                        desiredSelect.appendChild(option);
-                    }
-                });
+                // Populate desired sections container
+                const desiredSections = profile.desired_sections || [];
+                populateDesiredSectionsContainer('desired-sections-container', desiredSections, profile.current_section);
                 
                 hideAllCards();
                 profileCard.classList.remove('hidden');
@@ -702,11 +800,13 @@
         async function handleProfileUpdate(e) {
             e.preventDefault();
             
+            const desiredSections = getDesiredSectionsFromContainer('desired-sections-container');
+            
             const data = {
                 name: document.getElementById('profile-name').value.trim(),
                 phoneNumber: document.getElementById('profile-phone').value.trim(),
                 email: document.getElementById('profile-email').value.trim(),
-                desiredSection: document.getElementById('profile-desired-section').value
+                desiredSections: desiredSections
             };
 
             try {
@@ -724,7 +824,10 @@
                 const dashboardData = await apiCall('/dashboard');
                 
                 document.getElementById('dash-current-section').textContent = dashboardData.student.current_section;
-                document.getElementById('dash-desired-section').textContent = dashboardData.student.desired_section || 'Not set';
+                
+                // Display desired sections with priority
+                displayDesiredSectionsInDashboard(dashboardData.student.desired_sections);
+                
                 document.getElementById('dash-pending-requests').textContent = dashboardData.pendingRequests;
                 document.getElementById('dash-total-swaps').textContent = dashboardData.totalSwaps;
                 
@@ -743,18 +846,29 @@
                 
                 dashboardData.allStudents.forEach(student => {
                     const row = document.createElement('tr');
-                    const status = student.current_section === student.desired_section ? 
-                        'Satisfied' : 
-                        (student.desired_section ? 'Looking for swap' : 'No preference');
+                    
+                    // Handle desired sections array
+                    const desiredSections = student.desired_sections || [];
+                    const hasDesiredSections = desiredSections.length > 0;
+                    
+                    const status = !hasDesiredSections ? 'No preference' : 
+                                  desiredSections.includes(student.current_section) ? 'Satisfied' : 
+                                  'Looking for swap';
                     
                     const statusClass = status === 'Satisfied' ? 'status-satisfied' : 
                                        status === 'Looking for swap' ? 'status-looking' : 'status-no-preference';
+                    
+                    // Format desired sections display
+                    const desiredDisplay = hasDesiredSections ? 
+                        desiredSections.map((section, index) => 
+                            `<span class="section-badge" title="Priority ${index + 1}">${section}</span>`
+                        ).join(' ') : '-';
                     
                     row.innerHTML = `
                         <td>${student.roll_number}</td>
                         <td>${student.name}</td>
                         <td><span class="section-badge">${student.current_section}</span></td>
-                        <td>${student.desired_section ? `<span class="section-badge">${student.desired_section}</span>` : '-'}</td>
+                        <td>${desiredDisplay}</td>
                         <td><span class="status-badge ${statusClass}">${status}</span></td>
                     `;
                     tbody.appendChild(row);
@@ -918,6 +1032,12 @@
                     });
                 }
             });
+            
+            // Initialize desired sections containers with section options
+            setTimeout(() => {
+                populateDesiredSectionsContainer('reg-desired-sections-container', ['']);
+                populateDesiredSectionsContainer('desired-sections-container', ['']);
+            }, 100);
         }
 
         function populateSections() {
@@ -932,6 +1052,222 @@
                     desiredSelect.appendChild(option);
                 }
             });
+        }
+
+        // Functions for handling multiple desired sections
+        function addDesiredSection(containerId, addButtonId) {
+            const container = document.getElementById(containerId);
+            const newItem = document.createElement('div');
+            newItem.className = 'desired-section-item';
+            
+            newItem.innerHTML = `
+                <select class="desired-section-select">
+                    <option value="">Select section</option>
+                    ${allSections.map(section => `<option value="${section}">${section}</option>`).join('')}
+                </select>
+                <button type="button" class="remove-section" onclick="removeDesiredSection(this)">×</button>
+            `;
+            
+            container.appendChild(newItem);
+            updateRemoveButtonsVisibility(containerId);
+        }
+
+        function removeDesiredSection(button) {
+            const item = button.parentElement;
+            const container = item.parentElement;
+            const containerId = container.id;
+            
+            item.remove();
+            updateRemoveButtonsVisibility(containerId);
+        }
+
+        function updateRemoveButtonsVisibility(containerId) {
+            const container = document.getElementById(containerId);
+            const items = container.querySelectorAll('.desired-section-item');
+            
+            items.forEach((item, index) => {
+                const removeBtn = item.querySelector('.remove-section');
+                removeBtn.style.display = items.length > 1 ? 'flex' : 'none';
+            });
+        }
+
+        function getDesiredSectionsFromContainer(containerId) {
+            const container = document.getElementById(containerId);
+            const selects = container.querySelectorAll('.desired-section-select');
+            const sections = [];
+            
+            selects.forEach(select => {
+                if (select.value && select.value.trim() !== '') {
+                    sections.push(select.value);
+                }
+            });
+            
+            // Remove duplicates while preserving order
+            return [...new Set(sections)];
+        }
+
+        function populateDesiredSectionsContainer(containerId, sections = [], currentSection = null) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            if (sections.length === 0) {
+                sections = [''];
+            }
+            
+            sections.forEach((section, index) => {
+                const item = document.createElement('div');
+                item.className = 'desired-section-item';
+                
+                const select = document.createElement('select');
+                select.className = 'desired-section-select';
+                
+                // Add default option
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Select section';
+                select.appendChild(defaultOption);
+                
+                // Add all sections except current
+                allSections.forEach(sectionNum => {
+                    if (sectionNum !== currentSection) {
+                        const option = document.createElement('option');
+                        option.value = sectionNum;
+                        option.textContent = sectionNum;
+                        option.selected = sectionNum === section;
+                        select.appendChild(option);
+                    }
+                });
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-section';
+                removeBtn.textContent = '×';
+                removeBtn.onclick = () => removeDesiredSection(removeBtn);
+                removeBtn.style.display = sections.length > 1 ? 'flex' : 'none';
+                
+                item.appendChild(select);
+                item.appendChild(removeBtn);
+                container.appendChild(item);
+            });
+        }
+
+        function displayDesiredSectionsInDashboard(sections) {
+            const container = document.getElementById('dash-desired-sections');
+            
+            if (!sections || sections.length === 0) {
+                container.innerHTML = '<p>No sections set</p>';
+                return;
+            }
+            
+            const listHtml = sections.map((section, index) => 
+                `<div class="priority-item">
+                    <span class="priority-indicator">${index + 1}</span>
+                    <span>Section ${section}</span>
+                </div>`
+            ).join('');
+            
+            container.innerHTML = `<div class="priority-list">${listHtml}</div>`;
+        }
+
+        // Setup event listeners for add buttons
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add button for profile form
+            document.getElementById('add-desired-section')?.addEventListener('click', () => {
+                addDesiredSection('desired-sections-container', 'add-desired-section');
+            });
+            
+            // Add button for registration form
+            document.getElementById('reg-add-desired-section')?.addEventListener('click', () => {
+                addDesiredSection('reg-desired-sections-container', 'reg-add-desired-section');
+            });
+        });
+
+        // New functions for finding swaps across all desired sections
+        async function findAllSwapsFromDashboard() {
+            try {
+                const result = await apiCall('/find-all-swaps', 'POST');
+                displayAllSwapResults(result);
+                hideAllCards();
+                swapCard.classList.remove('hidden');
+            } catch (error) {
+                alert('Failed to find swaps: ' + error.message);
+            }
+        }
+
+        async function findAllSwapsFromCard() {
+            try {
+                const result = await apiCall('/find-all-swaps', 'POST');
+                displayAllSwapResults(result);
+            } catch (error) {
+                alert('Failed to find swaps: ' + error.message);
+            }
+        }
+
+        function displayAllSwapResults(result) {
+            const resultsDiv = document.getElementById('swap-results');
+            resultsDiv.classList.remove('hidden');
+            
+            if (result.type === 'none') {
+                resultsDiv.innerHTML = `
+                    <h3>No Swaps Found</h3>
+                    <div class="alert alert-info">
+                        <p>${result.message}</p>
+                        ${result.desiredSections ? 
+                            `<p><strong>Your desired sections:</strong> ${result.desiredSections.join(', ')}</p>` : 
+                            '<p>Please update your profile to add desired sections.</p>'
+                        }
+                    </div>
+                `;
+                return;
+            }
+            
+            if (result.type === 'multiple') {
+                let html = '<h3>Available Swaps (Priority Order)</h3>';
+                
+                result.swaps.forEach((swap, index) => {
+                    html += `
+                        <div class="swap-option" style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;">
+                            <h4 style="color: var(--primary-color);">
+                                Priority ${swap.priority}: ${currentUser.current_section} → Section ${swap.targetSection}
+                            </h4>
+                    `;
+                    
+                    if (swap.type === 'direct') {
+                        html += `<div class="alert alert-success">
+                            <strong>Direct Swap Available!</strong><br>
+                            <strong>Partners available:</strong><br>`;
+                        
+                        swap.partners.forEach(partner => {
+                            html += `• ${partner.name} (${partner.roll_number}) - Section ${partner.current_section}<br>`;
+                        });
+                        
+                        html += `</div>`;
+                    } else if (swap.type === 'multi') {
+                        html += `<div class="alert alert-warning">
+                            <strong>Multi-Step Swap Available!</strong><br>
+                            <strong>Swap chain:</strong><br>`;
+                        
+                        swap.path.forEach((step, i) => {
+                            html += `${i + 1}. ${step.student ? step.student.name + ' (' + step.student.roll_number + ')' : 'Student'} moves from Section ${step.from} to Section ${step.to}<br>`;
+                        });
+                        
+                        html += `</div>`;
+                    }
+                    
+                    html += '</div>';
+                });
+                
+                html += `
+                    <div class="alert alert-info" style="margin-top: 20px;">
+                        <strong>Next Steps:</strong><br>
+                        1. Contact the swap partner(s) to confirm interest<br>
+                        2. Complete the swap through official KIIT procedures<br>
+                        3. Verify with your academic office before making changes
+                    </div>
+                `;
+                
+                resultsDiv.innerHTML = html;
+            }
         }
     </script>
 </body>
