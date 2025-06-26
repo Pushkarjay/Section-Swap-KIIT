@@ -70,22 +70,29 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
 
 // Database helper functions
 async function executeQuery(query, params = []) {
-    if (isPostgreSQL) {
-        const client = await pool.connect();
-        try {
-            const result = await client.query(query, params);
-            return [result.rows];
-        } finally {
-            client.release();
+    try {
+        if (isPostgreSQL) {
+            const client = await pool.connect();
+            try {
+                const result = await client.query(query, params);
+                return [result.rows];
+            } finally {
+                client.release();
+            }
+        } else {
+            const connection = await pool.getConnection();
+            try {
+                const [rows] = await connection.execute(query, params);
+                return [rows];
+            } finally {
+                connection.release();
+            }
         }
-    } else {
-        const connection = await pool.getConnection();
-        try {
-            const [rows] = await connection.execute(query, params);
-            return [rows];
-        } finally {
-            connection.release();
-        }
+    } catch (error) {
+        console.error('Database query error:', error.message);
+        console.error('Query:', query);
+        console.error('Params:', params);
+        throw error;
     }
 }
 
@@ -760,13 +767,29 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
 });
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-    res.json({ 
-        status: 'OK', 
+app.get('/api/health', async (req, res) => {
+    const health = {
+        status: 'OK',
         timestamp: new Date().toISOString(),
         database: isPostgreSQL ? 'PostgreSQL' : 'MySQL',
-        environment: process.env.NODE_ENV || 'development'
-    });
+        environment: process.env.NODE_ENV || 'development',
+        databaseConnected: false
+    };
+    
+    try {
+        // Test database connection
+        if (isPostgreSQL) {
+            await executeQuery('SELECT 1 as test');
+        } else {
+            await executeQuery('SELECT 1 as test');
+        }
+        health.databaseConnected = true;
+    } catch (error) {
+        health.databaseConnected = false;
+        health.databaseError = error.message;
+    }
+    
+    res.json(health);
 });
 
 // Multi-step swap algorithm
@@ -853,19 +876,19 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
     }
 }
 
-// Initialize database and start server
-initializeDatabase()
-    .then(() => {
-        console.log('✅ Database initialized successfully');
-        app.listen(PORT, () => {
-            console.log(`🚀 Server running on http://localhost:${PORT}`);
-            console.log(`🌐 Live demo: https://section-swap-kiit.onrender.com`);
+// Start server first, then initialize database
+app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`🌐 Live demo: https://section-swap-kiit.onrender.com`);
+    console.log(`🔌 Database type: ${isPostgreSQL ? 'PostgreSQL' : 'MySQL'}`);
+    
+    // Initialize database after server starts
+    initializeDatabase()
+        .then(() => {
+            console.log('✅ Database initialized successfully');
+        })
+        .catch((error) => {
+            console.error('❌ Database initialization failed:', error.message);
+            console.log('⚠️ Server will continue running but database features may be limited');
         });
-    })
-    .catch((error) => {
-        console.error('❌ Database initialization failed, but starting server anyway for testing:', error.message);
-        app.listen(PORT, () => {
-            console.log(`⚠️ Server running on http://localhost:${PORT} (Database not available)`);
-            console.log(`🌐 Live demo: https://section-swap-kiit.onrender.com`);
-        });
-    });
+});
