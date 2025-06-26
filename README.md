@@ -20,9 +20,12 @@ A comprehensive web-based system that facilitates section swaps among students u
 - **📊 Dashboard**: Overview of current section, pending requests, and swap statistics
 - **🔄 Swap Algorithm**: Intelligent system to find direct and multi-step swap opportunities
 - **📧 Email Notifications**: Get notified when potential swaps are found
-- **📋 Swap Sheet**: View all students and their current/desired sections with priority display
+- **📋 Advanced Swap Sheet**: View all students with sorting and filtering capabilities
+- **🔍 Smart Filtering**: Filter by section, status, and other criteria
+- **📊 Table Sorting**: Sort by roll number, name, section, or status (ascending/descending)
 - **💾 PostgreSQL Integration**: Persistent data storage with relational database
 - **⚡ Real-time Updates**: Dynamic content updates without page refresh
+- **🛡️ Enhanced Error Handling**: Better API error detection and user feedback
 
 ## 🚀 Quick Start
 
@@ -157,7 +160,26 @@ Section-Swap-KIIT/
 - `swap_requests` - Tracks swap requests and status
 - `swap_history` - Historical record of completed swaps
 
-## 🔒 Security Features
+## � Advanced Swap Sheet Features
+
+### 🔍 Filtering Options
+- **Section Filter**: Filter students by any section (current or desired)
+- **Status Filter**: Filter by "Looking for swap", "Satisfied", or "No preference"
+- **Combined Filters**: Use multiple filters simultaneously
+
+### 📊 Sorting Options
+- **Sort by**: Roll Number, Name, Current Section, or Status
+- **Sort Order**: Ascending (↑) or Descending (↓)
+- **Real-time Sorting**: Instant results without page reload
+
+### 💡 How to Use
+1. Open the "View Swap Sheet" from dashboard
+2. Use filter dropdowns to narrow down results
+3. Select sort criteria and order
+4. Use "Clear Filters" to reset all settings
+5. See live count of filtered vs total students
+
+## �🔒 Security Features
 
 - ✅ Password hashing using bcryptjs
 - ✅ JWT token authentication  

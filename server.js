@@ -736,11 +736,18 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
         const dashboardData = {
             student: {
                 ...student[0],
-                desired_sections: student[0].desired_sections ? 
-                    JSON.parse(student[0].desired_sections || '[]') : []
+                desired_sections: (() => {
+                    try {
+                        return student[0].desired_sections ? 
+                            JSON.parse(student[0].desired_sections) : [];
+                    } catch (e) {
+                        console.error('Error parsing student desired_sections:', e);
+                        return [];
+                    }
+                })()
             },
             pendingRequests: pendingRequests.length,
-            totalSwaps: historyCount[0].count,
+            totalSwaps: historyCount[0].count || 0,
             allStudents: studentsWithParsedSections
         };
         
@@ -750,6 +757,16 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
         console.error('Dashboard error:', error);
         res.status(500).json({ error: 'Failed to fetch dashboard data', details: error.message });
     }
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        database: isPostgreSQL ? 'PostgreSQL' : 'MySQL',
+        environment: process.env.NODE_ENV || 'development'
+    });
 });
 
 // Multi-step swap algorithm
@@ -837,8 +854,18 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
 }
 
 // Initialize database and start server
-initializeDatabase().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
+initializeDatabase()
+    .then(() => {
+        console.log('✅ Database initialized successfully');
+        app.listen(PORT, () => {
+            console.log(`🚀 Server running on http://localhost:${PORT}`);
+            console.log(`🌐 Live demo: https://section-swap-kiit.onrender.com`);
+        });
+    })
+    .catch((error) => {
+        console.error('❌ Database initialization failed, but starting server anyway for testing:', error.message);
+        app.listen(PORT, () => {
+            console.log(`⚠️ Server running on http://localhost:${PORT} (Database not available)`);
+            console.log(`🌐 Live demo: https://section-swap-kiit.onrender.com`);
+        });
     });
-});
