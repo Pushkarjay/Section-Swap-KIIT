@@ -681,11 +681,18 @@ app.get('/api/swap-history', authenticateToken, async (req, res) => {
 // Get dashboard data
 app.get('/api/dashboard', authenticateToken, async (req, res) => {
     try {
+        console.log('Dashboard request from user ID:', req.user.id);
+        
         // Get current student
         const [student] = await executeQuery(
             isPostgreSQL ? 'SELECT * FROM students WHERE id = $1' : 'SELECT * FROM students WHERE id = ?',
             [req.user.id]
         );
+        
+        if (student.length === 0) {
+            console.log('Student not found for ID:', req.user.id);
+            return res.status(404).json({ error: 'Student not found' });
+        }
         
         // Get pending requests
         const [pendingRequests] = await executeQuery(
@@ -711,23 +718,37 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
         `);
         
         // Parse desired_sections for each student
-        const studentsWithParsedSections = allStudents.map(student => ({
-            ...student,
-            desired_sections: student.desired_sections ? JSON.parse(student.desired_sections) : []
-        }));
+        const studentsWithParsedSections = allStudents.map(student => {
+            try {
+                return {
+                    ...student,
+                    desired_sections: student.desired_sections ? JSON.parse(student.desired_sections) : []
+                };
+            } catch (e) {
+                console.error('Error parsing desired_sections for student:', student.roll_number, e);
+                return {
+                    ...student,
+                    desired_sections: []
+                };
+            }
+        });
         
-        res.json({
+        const dashboardData = {
             student: {
                 ...student[0],
-                desired_sections: student[0].desired_sections ? JSON.parse(student[0].desired_sections) : []
+                desired_sections: student[0].desired_sections ? 
+                    JSON.parse(student[0].desired_sections || '[]') : []
             },
             pendingRequests: pendingRequests.length,
             totalSwaps: historyCount[0].count,
             allStudents: studentsWithParsedSections
-        });
+        };
+        
+        console.log('Dashboard data prepared successfully');
+        res.json(dashboardData);
     } catch (error) {
         console.error('Dashboard error:', error);
-        res.status(500).json({ error: 'Failed to fetch dashboard data' });
+        res.status(500).json({ error: 'Failed to fetch dashboard data', details: error.message });
     }
 });
 

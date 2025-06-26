@@ -339,6 +339,61 @@
             border-bottom: none;
         }
         
+        /* Sheet Controls Styling */
+        .sheet-controls {
+            border: 1px solid #dee2e6;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            min-width: 150px;
+        }
+        
+        .control-group label {
+            white-space: nowrap;
+            margin-bottom: 0;
+        }
+        
+        .control-group select {
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background-color: white;
+        }
+        
+        /* Table styling improvements */
+        #swap-sheet-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        #swap-sheet-table th,
+        #swap-sheet-table td {
+            padding: 12px 8px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        #swap-sheet-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        #swap-sheet-table tbody tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .table-responsive {
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -512,6 +567,51 @@
         <!-- Swap Sheet Card -->
         <div class="card hidden" id="sheet-card">
             <h2 class="card-title">Student Swap Sheet</h2>
+            
+            <!-- Filter and Sort Controls -->
+            <div class="sheet-controls" style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
+                    <div class="control-group">
+                        <label for="section-filter" style="margin-right: 5px; font-weight: bold;">Filter by Section:</label>
+                        <select id="section-filter" style="padding: 5px;">
+                            <option value="">All Sections</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="status-filter" style="margin-right: 5px; font-weight: bold;">Filter by Status:</label>
+                        <select id="status-filter" style="padding: 5px;">
+                            <option value="">All Status</option>
+                            <option value="Looking for swap">Looking for swap</option>
+                            <option value="Satisfied">Satisfied</option>
+                            <option value="No preference">No preference</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="sort-by" style="margin-right: 5px; font-weight: bold;">Sort by:</label>
+                        <select id="sort-by" style="padding: 5px;">
+                            <option value="roll_number">Roll Number</option>
+                            <option value="name">Name</option>
+                            <option value="current_section">Current Section</option>
+                            <option value="status">Status</option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <button id="sort-order-btn" class="btn-secondary" style="padding: 5px 10px;">
+                            ↑ Ascending
+                        </button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <button id="clear-filters-btn" class="btn-secondary" style="padding: 5px 10px;">
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
             <div class="table-responsive">
                 <table id="swap-sheet-table">
                     <thead>
@@ -519,7 +619,7 @@
                             <th>Roll Number</th>
                             <th>Name</th>
                             <th>Current Section</th>
-                            <th>Desired Section</th>
+                            <th>Desired Sections</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -527,6 +627,9 @@
                         <!-- Data will be populated here -->
                     </tbody>
                 </table>
+            </div>
+            <div style="margin-top: 15px;">
+                <span id="table-info" style="font-size: 14px; color: #666;"></span>
             </div>
             <button type="button" id="back-to-dashboard-from-sheet">Back to Dashboard</button>
         </div>
@@ -676,6 +779,13 @@
             document.getElementById('confirm-direct-swap').addEventListener('click', confirmDirectSwap);
             document.getElementById('confirm-multi-swap').addEventListener('click', confirmMultiSwap);
             document.getElementById('back-to-swap').addEventListener('click', showSwapCard);
+            
+            // Sheet filter and sort controls
+            document.getElementById('section-filter').addEventListener('change', applyFilters);
+            document.getElementById('status-filter').addEventListener('change', applyFilters);
+            document.getElementById('sort-by').addEventListener('change', applySorting);
+            document.getElementById('sort-order-btn').addEventListener('click', toggleSortOrder);
+            document.getElementById('clear-filters-btn').addEventListener('click', clearFilters);
         }
 
         // API Functions
@@ -698,16 +808,26 @@
             try {
                 console.log('Making API call to:', API_BASE + endpoint);
                 const response = await fetch(API_BASE + endpoint, config);
+                
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    console.error('Non-JSON response received:', text);
+                    throw new Error(`Server error: Expected JSON but got ${contentType}. Check if server is running properly.`);
+                }
+                
                 const result = await response.json();
                 
                 if (!response.ok) {
-                    throw new Error(result.error || 'API call failed');
+                    throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 return result;
             } catch (error) {
                 console.error('API Error:', error);
                 console.error('Full URL:', API_BASE + endpoint);
+                console.error('Response status:', error.status);
                 throw error;
             }
         }
@@ -838,15 +958,15 @@
             } catch (error) {
                 alert('Failed to load dashboard: ' + error.message);
             }
-        }        async function showSwapSheet() {
+        // Global variables for filtering and sorting
+        let allStudentsData = [];
+        let currentSortColumn = 'roll_number';
+        let currentSortOrder = 'asc';
+
+        async function showSwapSheet() {
             try {
                 const dashboardData = await apiCall('/dashboard');
-                const tbody = document.getElementById('swap-sheet-body');
-                tbody.innerHTML = '';
-                
-                dashboardData.allStudents.forEach(student => {
-                    const row = document.createElement('tr');
-                    
+                allStudentsData = dashboardData.allStudents.map(student => {
                     // Handle desired sections array
                     const desiredSections = student.desired_sections || [];
                     const hasDesiredSections = desiredSections.length > 0;
@@ -855,30 +975,163 @@
                                   desiredSections.includes(student.current_section) ? 'Satisfied' : 
                                   'Looking for swap';
                     
-                    const statusClass = status === 'Satisfied' ? 'status-satisfied' : 
-                                       status === 'Looking for swap' ? 'status-looking' : 'status-no-preference';
-                    
-                    // Format desired sections display
-                    const desiredDisplay = hasDesiredSections ? 
-                        desiredSections.map((section, index) => 
-                            `<span class="section-badge" title="Priority ${index + 1}">${section}</span>`
-                        ).join(' ') : '-';
-                    
-                    row.innerHTML = `
-                        <td>${student.roll_number}</td>
-                        <td>${student.name}</td>
-                        <td><span class="section-badge">${student.current_section}</span></td>
-                        <td>${desiredDisplay}</td>
-                        <td><span class="status-badge ${statusClass}">${status}</span></td>
-                    `;
-                    tbody.appendChild(row);
+                    return {
+                        ...student,
+                        status: status,
+                        desired_sections: desiredSections
+                    };
                 });
+                
+                // Populate section filter dropdown
+                populateSectionFilter();
+                
+                // Display the data
+                displayFilteredStudents(allStudentsData);
                 
                 hideAllCards();
                 sheetCard.classList.remove('hidden');
             } catch (error) {
                 alert('Failed to load swap sheet: ' + error.message);
             }
+        }
+
+        function populateSectionFilter() {
+            const sectionFilter = document.getElementById('section-filter');
+            sectionFilter.innerHTML = '<option value="">All Sections</option>';
+            
+            // Get unique sections
+            const sections = new Set();
+            allStudentsData.forEach(student => {
+                sections.add(student.current_section);
+                student.desired_sections.forEach(section => sections.add(section));
+            });
+            
+            // Sort sections
+            const sortedSections = Array.from(sections).sort();
+            sortedSections.forEach(section => {
+                const option = document.createElement('option');
+                option.value = section;
+                option.textContent = section;
+                sectionFilter.appendChild(option);
+            });
+        }
+
+        function displayFilteredStudents(students) {
+            const tbody = document.getElementById('swap-sheet-body');
+            tbody.innerHTML = '';
+            
+            students.forEach(student => {
+                const row = document.createElement('tr');
+                
+                const statusClass = student.status === 'Satisfied' ? 'status-satisfied' : 
+                                   student.status === 'Looking for swap' ? 'status-looking' : 'status-no-preference';
+                
+                // Format desired sections display
+                const desiredDisplay = student.desired_sections.length > 0 ? 
+                    student.desired_sections.map((section, index) => 
+                        `<span class="section-badge" title="Priority ${index + 1}">${section}</span>`
+                    ).join(' ') : '-';
+                
+                row.innerHTML = `
+                    <td>${student.roll_number}</td>
+                    <td>${student.name}</td>
+                    <td><span class="section-badge">${student.current_section}</span></td>
+                    <td>${desiredDisplay}</td>
+                    <td><span class="status-badge ${statusClass}">${student.status}</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            // Update table info
+            updateTableInfo(students.length, allStudentsData.length);
+        }
+
+        function updateTableInfo(filteredCount, totalCount) {
+            const tableInfo = document.getElementById('table-info');
+            tableInfo.textContent = `Showing ${filteredCount} of ${totalCount} students`;
+        }
+
+        function applyFilters() {
+            const sectionFilter = document.getElementById('section-filter').value;
+            const statusFilter = document.getElementById('status-filter').value;
+            
+            let filteredStudents = allStudentsData.filter(student => {
+                // Section filter
+                if (sectionFilter && 
+                    student.current_section !== sectionFilter && 
+                    !student.desired_sections.includes(sectionFilter)) {
+                    return false;
+                }
+                
+                // Status filter
+                if (statusFilter && student.status !== statusFilter) {
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            // Apply current sorting
+            filteredStudents = sortStudents(filteredStudents, currentSortColumn, currentSortOrder);
+            
+            displayFilteredStudents(filteredStudents);
+        }
+
+        function applySorting() {
+            const sortBy = document.getElementById('sort-by').value;
+            currentSortColumn = sortBy;
+            applyFilters(); // This will apply both filters and sorting
+        }
+
+        function toggleSortOrder() {
+            const sortOrderBtn = document.getElementById('sort-order-btn');
+            currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+            sortOrderBtn.textContent = currentSortOrder === 'asc' ? '↑ Ascending' : '↓ Descending';
+            applyFilters(); // This will apply both filters and sorting
+        }
+
+        function sortStudents(students, column, order) {
+            return students.sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(column) {
+                    case 'roll_number':
+                        aVal = a.roll_number;
+                        bVal = b.roll_number;
+                        break;
+                    case 'name':
+                        aVal = a.name.toLowerCase();
+                        bVal = b.name.toLowerCase();
+                        break;
+                    case 'current_section':
+                        aVal = a.current_section;
+                        bVal = b.current_section;
+                        break;
+                    case 'status':
+                        aVal = a.status;
+                        bVal = b.status;
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                if (aVal < bVal) return order === 'asc' ? -1 : 1;
+                if (aVal > bVal) return order === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        function clearFilters() {
+            document.getElementById('section-filter').value = '';
+            document.getElementById('status-filter').value = '';
+            document.getElementById('sort-by').value = 'roll_number';
+            currentSortColumn = 'roll_number';
+            currentSortOrder = 'asc';
+            document.getElementById('sort-order-btn').textContent = '↑ Ascending';
+            
+            // Display all students with default sorting
+            const sortedStudents = sortStudents([...allStudentsData], currentSortColumn, currentSortOrder);
+            displayFilteredStudents(sortedStudents);
         }
 
         // Swap functions
