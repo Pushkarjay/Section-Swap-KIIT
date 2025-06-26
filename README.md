@@ -144,6 +144,37 @@ npm run test-db
 npm test
 ```
 
+## 🚀 Deployment
+
+### Deploy to Render (Recommended)
+
+1. **Create Render Account**: Go to [render.com](https://render.com) and sign up
+2. **Connect GitHub**: Link your GitHub account
+3. **Create New Web Service**: Choose your repository
+4. **Configure Settings**:
+   - Build Command: `npm install`
+   - Start Command: `npm start`
+   - Environment: `Node`
+5. **Add Environment Variables**:
+   - `JWT_SECRET`: `your-secret-key-here`
+   - `NODE_ENV`: `production`
+6. **Add Database**: Create a PostgreSQL database (free tier)
+7. **Update Connection**: Use the provided `DATABASE_URL`
+
+### Deploy to Railway
+1. Go to [railway.app](https://railway.app)
+2. Connect GitHub repository
+3. Add MySQL database service
+4. Set environment variables
+5. Deploy automatically
+
+### Deploy to Heroku
+1. Install Heroku CLI
+2. `heroku create your-app-name`
+3. `heroku addons:create cleardb:ignite` (MySQL)
+4. Set environment variables
+5. `git push heroku main`
+
 ## 🤝 Contributing
 
 1. Fork the repository
