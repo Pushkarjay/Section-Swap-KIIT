@@ -118,6 +118,28 @@ async function initializeDatabase() {
                 )
             `);
             
+            // Add the desired_sections column if it doesn't exist (for existing databases)
+            try {
+                await executeQuery(`
+                    ALTER TABLE students ADD COLUMN IF NOT EXISTS desired_sections TEXT
+                `);
+            } catch (e) {
+                // Column might already exist, ignore error
+                console.log('Column desired_sections already exists or other issue:', e.message);
+            }
+            
+            // Migrate data from old column name if it exists
+            try {
+                await executeQuery(`
+                    UPDATE students SET desired_sections = desired_section 
+                    WHERE desired_sections IS NULL AND desired_section IS NOT NULL
+                `);
+                console.log('✅ Migrated data from desired_section to desired_sections');
+            } catch (e) {
+                // Old column doesn't exist, ignore
+                console.log('No migration needed for desired_section column');
+            }
+            
             await executeQuery(`
                 CREATE TABLE IF NOT EXISTS swap_requests (
                     id SERIAL PRIMARY KEY,
