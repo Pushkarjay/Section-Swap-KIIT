@@ -657,13 +657,21 @@ app.post('/api/swap-request', authenticateToken, async (req, res) => {
     try {
         const { targetSection, swapType, swapPath } = req.body;
         
-        const [result] = await pool.execute(
-            'INSERT INTO swap_requests (requester_id, target_section, swap_type, swap_path) VALUES (?, ?, ?, ?)',
-            [req.user.id, targetSection, swapType, JSON.stringify(swapPath || null)]
-        );
-        
-        res.json({ message: 'Swap request created successfully', requestId: result.insertId });
+        if (isPostgreSQL) {
+            const [result] = await executeQuery(
+                'INSERT INTO swap_requests (requester_id, target_section, swap_type, swap_path) VALUES ($1, $2, $3, $4) RETURNING id',
+                [req.user.id, targetSection, swapType, JSON.stringify(swapPath || null)]
+            );
+            res.json({ message: 'Swap request created successfully', requestId: result[0].id });
+        } else {
+            const [result] = await executeQuery(
+                'INSERT INTO swap_requests (requester_id, target_section, swap_type, swap_path) VALUES (?, ?, ?, ?)',
+                [req.user.id, targetSection, swapType, JSON.stringify(swapPath || null)]
+            );
+            res.json({ message: 'Swap request created successfully', requestId: result.insertId });
+        }
     } catch (error) {
+        console.error('Swap request error:', error);
         res.status(500).json({ error: 'Failed to create swap request' });
     }
 });
@@ -671,16 +679,26 @@ app.post('/api/swap-request', authenticateToken, async (req, res) => {
 // Get swap history
 app.get('/api/swap-history', authenticateToken, async (req, res) => {
     try {
-        const [rows] = await pool.execute(`
-            SELECT sh.*, sp.roll_number as partner_roll_number, sp.name as partner_name
-            FROM swap_history sh
-            LEFT JOIN students sp ON sh.swap_partner_id = sp.id
-            WHERE sh.student_id = ?
-            ORDER BY sh.swap_date DESC
-        `, [req.user.id]);
+        const [rows] = await executeQuery(
+            isPostgreSQL ? `
+                SELECT sh.*, sp.roll_number as partner_roll_number, sp.name as partner_name
+                FROM swap_history sh
+                LEFT JOIN students sp ON sh.swap_partner_id = sp.id
+                WHERE sh.student_id = $1
+                ORDER BY sh.swap_date DESC
+            ` : `
+                SELECT sh.*, sp.roll_number as partner_roll_number, sp.name as partner_name
+                FROM swap_history sh
+                LEFT JOIN students sp ON sh.swap_partner_id = sp.id
+                WHERE sh.student_id = ?
+                ORDER BY sh.swap_date DESC
+            `,
+            [req.user.id]
+        );
         
         res.json(rows);
     } catch (error) {
+        console.error('Swap history error:', error);
         res.status(500).json({ error: 'Failed to fetch swap history' });
     }
 });
