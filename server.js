@@ -279,8 +279,10 @@ app.post('/api/login', async (req, res) => {
 // Get student profile
 app.get('/api/profile', authenticateToken, async (req, res) => {
     try {
-        const [rows] = await pool.execute(
-            'SELECT id, roll_number, name, phone_number, email, current_section, desired_section, created_at FROM students WHERE id = ?',
+        const [rows] = await executeQuery(
+            isPostgreSQL ? 
+                'SELECT id, roll_number, name, phone_number, email, current_section, desired_section, created_at FROM students WHERE id = $1' :
+                'SELECT id, roll_number, name, phone_number, email, current_section, desired_section, created_at FROM students WHERE id = ?',
             [req.user.id]
         );
         
@@ -290,6 +292,7 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
         
         res.json(rows[0]);
     } catch (error) {
+        console.error('Profile fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch profile' });
     }
 });
@@ -299,13 +302,16 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
     try {
         const { name, phoneNumber, email, desiredSection } = req.body;
         
-        await pool.execute(
-            'UPDATE students SET name = ?, phone_number = ?, email = ?, desired_section = ? WHERE id = ?',
+        await executeQuery(
+            isPostgreSQL ?
+                'UPDATE students SET name = $1, phone_number = $2, email = $3, desired_section = $4 WHERE id = $5' :
+                'UPDATE students SET name = ?, phone_number = ?, email = ?, desired_section = ? WHERE id = ?',
             [name, phoneNumber, email, desiredSection, req.user.id]
         );
         
         res.json({ message: 'Profile updated successfully' });
     } catch (error) {
+        console.error('Profile update error:', error);
         res.status(500).json({ error: 'Failed to update profile' });
     }
 });
@@ -316,8 +322,8 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
         const { desiredSection } = req.body;
         
         // Get current student info
-        const [currentStudent] = await pool.execute(
-            'SELECT * FROM students WHERE id = ?',
+        const [currentStudent] = await executeQuery(
+            isPostgreSQL ? 'SELECT * FROM students WHERE id = $1' : 'SELECT * FROM students WHERE id = ?',
             [req.user.id]
         );
         
@@ -328,11 +334,18 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
         const student = currentStudent[0];
         
         // Check for direct swap
-        const [directSwapPartners] = await pool.execute(`
-            SELECT id, roll_number, name, current_section, desired_section 
-            FROM students 
-            WHERE current_section = ? AND desired_section = ? AND id != ?
-        `, [desiredSection, student.current_section, student.id]);
+        const [directSwapPartners] = await executeQuery(
+            isPostgreSQL ? `
+                SELECT id, roll_number, name, current_section, desired_section 
+                FROM students 
+                WHERE current_section = $1 AND desired_section = $2 AND id != $3
+            ` : `
+                SELECT id, roll_number, name, current_section, desired_section 
+                FROM students 
+                WHERE current_section = ? AND desired_section = ? AND id != ?
+            `,
+            [desiredSection, student.current_section, student.id]
+        );
         
         if (directSwapPartners.length > 0) {
             return res.json({
@@ -353,6 +366,7 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
         
         res.json({ type: 'none' });
     } catch (error) {
+        console.error('Find swap error:', error);
         res.status(500).json({ error: 'Failed to find swap options' });
     }
 });
@@ -394,25 +408,29 @@ app.get('/api/swap-history', authenticateToken, async (req, res) => {
 app.get('/api/dashboard', authenticateToken, async (req, res) => {
     try {
         // Get current student
-        const [student] = await pool.execute(
-            'SELECT * FROM students WHERE id = ?',
+        const [student] = await executeQuery(
+            isPostgreSQL ? 'SELECT * FROM students WHERE id = $1' : 'SELECT * FROM students WHERE id = ?',
             [req.user.id]
         );
         
         // Get pending requests
-        const [pendingRequests] = await pool.execute(
-            'SELECT * FROM swap_requests WHERE requester_id = ? AND status = "pending"',
-            [req.user.id]
+        const [pendingRequests] = await executeQuery(
+            isPostgreSQL ? 
+                'SELECT * FROM swap_requests WHERE requester_id = $1 AND status = $2' :
+                'SELECT * FROM swap_requests WHERE requester_id = ? AND status = ?',
+            [req.user.id, 'pending']
         );
         
         // Get swap history count
-        const [historyCount] = await pool.execute(
-            'SELECT COUNT(*) as count FROM swap_history WHERE student_id = ?',
+        const [historyCount] = await executeQuery(
+            isPostgreSQL ? 
+                'SELECT COUNT(*) as count FROM swap_history WHERE student_id = $1' :
+                'SELECT COUNT(*) as count FROM swap_history WHERE student_id = ?',
             [req.user.id]
         );
         
         // Get all students for swap sheet
-        const [allStudents] = await pool.execute(`
+        const [allStudents] = await executeQuery(`
             SELECT roll_number, name, current_section, desired_section
             FROM students
             ORDER BY roll_number
@@ -425,6 +443,7 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
             allStudents
         });
     } catch (error) {
+        console.error('Dashboard error:', error);
         res.status(500).json({ error: 'Failed to fetch dashboard data' });
     }
 });
