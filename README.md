@@ -2,6 +2,8 @@
 
 A comprehensive web-based system that facilitates section swaps among students using MySQL database, authentication, and multi-step swap algorithms.
 
+🌐 **Live Demo**: [https://section-swap-kiit.onrender.com](https://section-swap-kiit.onrender.com)
+
 ![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-00000F?style=for-the-badge&logo=mysql&logoColor=white)
 ![Express.js](https://img.shields.io/badge/Express.js-404D59?style=for-the-badge)
@@ -21,6 +23,14 @@ A comprehensive web-based system that facilitates section swaps among students u
 
 ## 🚀 Quick Start
 
+### 🌐 Try the Live Demo
+**Visit**: [https://section-swap-kiit.onrender.com](https://section-swap-kiit.onrender.com)
+
+- Register with any roll number (e.g., 2106001)
+- Use any current section (A1, B2, C3, etc.)
+- Set a desired section different from current
+- Explore the swap features!
+
 ### Prerequisites
 
 - **Node.js** (v14 or higher) - [Download here](https://nodejs.org/)
@@ -30,7 +40,7 @@ A comprehensive web-based system that facilitates section swaps among students u
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/Section-Swap-KIIT.git
+   git clone https://github.com/Pushkarjay/Section-Swap-KIIT.git
    cd Section-Swap-KIIT
    ```
 
@@ -148,18 +158,32 @@ npm test
 
 ### Deploy to Render (Recommended)
 
+✅ **Live at**: [https://section-swap-kiit.onrender.com](https://section-swap-kiit.onrender.com)
+
+**Quick Deployment Steps:**
 1. **Create Render Account**: Go to [render.com](https://render.com) and sign up
 2. **Connect GitHub**: Link your GitHub account
-3. **Create New Web Service**: Choose your repository
-4. **Configure Settings**:
+3. **Create PostgreSQL Database**: 
+   - Name: `Section_Swap`
+   - Region: `Oregon (US West)`
+   - Copy the **External Database URL**
+4. **Create Web Service**: Choose your repository
+5. **Configure Settings**:
    - Build Command: `npm install`
-   - Start Command: `npm start`
+   - Start Command: `node server.js`
    - Environment: `Node`
-5. **Add Environment Variables**:
-   - `JWT_SECRET`: `your-secret-key-here`
+6. **Add Environment Variables**:
+   - `JWT_SECRET`: `section_swap_jwt_secret_2024_render_production`
    - `NODE_ENV`: `production`
-6. **Add Database**: Create a PostgreSQL database (free tier)
-7. **Update Connection**: Use the provided `DATABASE_URL`
+   - `DATABASE_URL`: `postgresql://section_swap_user:...` (from step 3)
+7. **Deploy**: Your app will be live at `https://section-swap-kiit.onrender.com`
+
+**Features:**
+- ✅ Free tier available (750 hours/month)
+- ✅ Automatic deployments from GitHub
+- ✅ Built-in PostgreSQL database
+- ✅ HTTPS included
+- ✅ Environment variables management
 
 ### Deploy to Railway
 1. Go to [railway.app](https://railway.app)
@@ -189,7 +213,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 👥 Authors
 
-- **Your Name** - *Initial work* - [YourGitHub](https://github.com/your-username)
+- **Pushkarjay** - *Initial work* - [Pushkarjay](https://github.com/Pushkarjay)
 
 ## 🙏 Acknowledgments
 
@@ -224,7 +248,7 @@ Before running this application, make sure you have:
 
 ### 1. Clone/Download the Project
 ```bash
-git clone <repository-url>
+git clone https://github.com/Pushkarjay/Section-Swap-KIIT.git
 cd Section-Swap-KIIT
 ```
 

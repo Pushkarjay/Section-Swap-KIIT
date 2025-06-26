@@ -1,10 +1,51 @@
 const express = require('express');
-const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 require('dotenv').config();
+
+// Database imports - support both MySQL and PostgreSQL
+let mysql, pg, pool;
+
+// Determine database type based on environment
+const isPostgreSQL = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgres');
+
+if (isPostgreSQL) {
+    // PostgreSQL setup for Render
+    pg = require('pg');
+    const { Pool } = pg;
+    pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+} else {
+    // MySQL setup for local development
+    mysql = require('mysql2/promise');
+    if (process.env.DATABASE_URL) {
+        const url = new URL(process.env.DATABASE_URL);
+        pool = mysql.createPool({
+            host: url.hostname,
+            port: url.port || 3306,
+            user: url.username,
+            password: url.password,
+            database: url.pathname.slice(1),
+            waitForConnections: true,
+            connectionLimit: 10,
+            queueLimit: 0
+        });
+    } else {
+        pool = mysql.createPool({
+            host: process.env.DB_HOST || 'localhost',
+            user: process.env.DB_USER || 'root',
+            password: process.env.DB_PASSWORD || '',
+            database: process.env.DB_NAME || 'section_swap_db',
+            waitForConnections: true,
+            connectionLimit: 10,
+            queueLimit: 0
+        });
+    }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,36 +54,6 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static('.'));
-
-// MySQL Connection Pool
-let pool;
-
-// Support both individual connection parameters and DATABASE_URL
-if (process.env.DATABASE_URL) {
-    // For cloud hosting (like Render) - parse DATABASE_URL
-    const url = new URL(process.env.DATABASE_URL);
-    pool = mysql.createPool({
-        host: url.hostname,
-        port: url.port || 3306,
-        user: url.username,
-        password: url.password,
-        database: url.pathname.slice(1), // Remove leading slash
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
-    });
-} else {
-    // For local development - use individual parameters
-    pool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'section_swap_db',
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
-    });
-}
 
 // Initialize Database
 async function initializeDatabase() {
