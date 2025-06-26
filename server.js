@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
@@ -50,6 +51,21 @@ if (isPostgreSQL) {
             queueLimit: 0
         });
     }
+}
+
+// Email configuration (optional)
+let transporter = null;
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    transporter = nodemailer.createTransporter({
+        service: process.env.EMAIL_SERVICE || 'gmail',
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+        }
+    });
+    console.log('📧 Email notifications enabled');
+} else {
+    console.log('📧 Email notifications disabled (no credentials provided)');
 }
 
 // Database helper functions
@@ -197,6 +213,64 @@ const authenticateToken = (req, res, next) => {
         next();
     });
 };
+
+// Email notification function
+async function sendSwapNotification(toEmail, studentName, partnerName, partnerRoll, partnerSection, currentSection, desiredSection, swapType = 'direct') {
+    if (!transporter || !toEmail) return;
+    
+    try {
+        const mailOptions = {
+            from: process.env.EMAIL_FROM || 'KIIT Section Swap <noreply@sectionswap.com>',
+            to: toEmail,
+            subject: `🔄 Potential Section Swap Found - ${currentSection} ↔ ${desiredSection}`,
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+                    <h2 style="color: #2c3e50; text-align: center;">🎉 Potential Section Swap Found!</h2>
+                    
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <p><strong>Hi ${studentName},</strong></p>
+                        <p>Great news! We found a potential ${swapType} swap partner for you:</p>
+                    </div>
+                    
+                    <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                        <h3 style="color: #1976d2; margin-top: 0;">Swap Details:</h3>
+                        <p><strong>Partner:</strong> ${partnerName} (${partnerRoll})</p>
+                        <p><strong>Your Section:</strong> ${currentSection} → <strong>${desiredSection}</strong></p>
+                        <p><strong>Partner's Section:</strong> ${partnerSection} → <strong>${currentSection}</strong></p>
+                        <p><strong>Swap Type:</strong> ${swapType === 'direct' ? 'Direct Swap' : 'Multi-Step Swap'}</p>
+                    </div>
+                    
+                    <div style="background-color: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                        <h4 style="color: #856404; margin-top: 0;">⚠️ Important:</h4>
+                        <p>This is an <strong>unofficial notification</strong>. Please:</p>
+                        <ul>
+                            <li>Contact your swap partner to confirm interest</li>
+                            <li>Complete the swap through <strong>official KIIT procedures</strong></li>
+                            <li>Verify with your academic office before making changes</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 30px;">
+                        <a href="https://section-swap-kiit.onrender.com" style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                            View on Platform
+                        </a>
+                    </div>
+                    
+                    <hr style="margin: 30px 0; border: 1px solid #eee;">
+                    <p style="font-size: 12px; color: #6c757d; text-align: center;">
+                        This email was sent by the unofficial KIIT Section Swap platform.<br>
+                        This is not an official KIIT communication.
+                    </p>
+                </div>
+            `
+        };
+        
+        await transporter.sendMail(mailOptions);
+        console.log(`📧 Swap notification sent to ${toEmail}`);
+    } catch (error) {
+        console.error('📧 Email send error:', error);
+    }
+}
 
 // Routes
 
@@ -348,9 +422,25 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
         );
         
         if (directSwapPartners.length > 0) {
+            const partner = directSwapPartners[0];
+            
+            // Send email notification if student has email
+            if (student.email) {
+                await sendSwapNotification(
+                    student.email,
+                    student.name,
+                    partner.name,
+                    partner.roll_number,
+                    partner.current_section,
+                    student.current_section,
+                    desiredSection,
+                    'direct'
+                );
+            }
+            
             return res.json({
                 type: 'direct',
-                partner: directSwapPartners[0]
+                partner: partner
             });
         }
         
@@ -358,6 +448,21 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
         const swapPath = await findMultiStepSwap(student.current_section, desiredSection, student.id);
         
         if (swapPath) {
+            // Send email notification for multi-step swap
+            if (student.email && swapPath.length > 0) {
+                const firstStep = swapPath[0];
+                await sendSwapNotification(
+                    student.email,
+                    student.name,
+                    firstStep.student ? firstStep.student.name : 'Multiple Students',
+                    firstStep.student ? firstStep.student.roll_number : 'Various',
+                    firstStep.from,
+                    student.current_section,
+                    desiredSection,
+                    'multi-step'
+                );
+            }
+            
             return res.json({
                 type: 'multi',
                 path: swapPath
