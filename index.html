@@ -496,8 +496,12 @@
             <p>© 2023 Student Section Swap System. All rights reserved.</p>
         </div>
     </footer>    <script>
-        // API Base URL
-        const API_BASE = 'http://localhost:3000/api';
+        // API Base URL - automatically detect environment
+        const API_BASE = window.location.hostname === 'localhost' 
+            ? 'http://localhost:3000/api' 
+            : 'https://section-swap-kiit.onrender.com/api';
+        
+        console.log('Using API Base:', API_BASE);
         
         // Authentication token
         let authToken = localStorage.getItem('authToken');
@@ -581,6 +585,7 @@
             }
 
             try {
+                console.log('Making API call to:', API_BASE + endpoint);
                 const response = await fetch(API_BASE + endpoint, config);
                 const result = await response.json();
                 
@@ -591,6 +596,7 @@
                 return result;
             } catch (error) {
                 console.error('API Error:', error);
+                console.error('Full URL:', API_BASE + endpoint);
                 throw error;
             }
         }
