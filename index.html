@@ -938,9 +938,10 @@
             }
         }
 
-        // Dashboard functions
-        async function showDashboard() {
+        // Dashboard functions with retry mechanism
+        async function showDashboard(retryCount = 0) {
             try {
+                console.log('Loading dashboard... (attempt', retryCount + 1, ')');
                 const dashboardData = await apiCall('/dashboard');
                 
                 document.getElementById('dash-current-section').textContent = dashboardData.student.current_section;
@@ -955,9 +956,40 @@
                 
                 hideAllCards();
                 dashboardCard.classList.remove('hidden');
+                console.log('Dashboard loaded successfully');
             } catch (error) {
-                alert('Failed to load dashboard: ' + error.message);
+                console.error('Dashboard error:', error);
+                
+                // Retry once after 2 seconds if it's the first attempt
+                if (retryCount === 0) {
+                    console.log('Retrying dashboard load in 2 seconds...');
+                    setTimeout(() => showDashboard(1), 2000);
+                    
+                    // Show loading state
+                    hideAllCards();
+                    dashboardCard.classList.remove('hidden');
+                    document.getElementById('dash-current-section').textContent = 'Loading...';
+                    document.getElementById('dash-pending-requests').textContent = '-';
+                    document.getElementById('dash-total-swaps').textContent = '-';
+                    return;
+                }
+                
+                // Show error after retry failed
+                alert(`Failed to load dashboard: ${error.message}\n\nPlease check your internet connection and try refreshing the page.`);
+                
+                // Show error state on dashboard
+                hideAllCards();
+                dashboardCard.classList.remove('hidden');
+                document.getElementById('dash-current-section').textContent = 'Error loading data';
+                document.getElementById('dash-pending-requests').textContent = '-';
+                document.getElementById('dash-total-swaps').textContent = '-';
+                
+                // Clear desired sections
+                const container = document.getElementById('dash-desired-sections');
+                container.innerHTML = '<p style="color: #dc3545;">Failed to load sections</p>';
             }
+        }
+
         // Global variables for filtering and sorting
         let allStudentsData = [];
         let currentSortColumn = 'roll_number';
