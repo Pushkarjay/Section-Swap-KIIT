@@ -15,9 +15,12 @@ A comprehensive web-based system that facilitates section swaps among students u
 
 - **🔐 User Authentication**: Secure login/registration with password hashing and JWT tokens
 - **👤 Profile Management**: Students can update their personal information and desired sections
+- **🎯 Multiple Desired Sections**: Set multiple sections in priority order (unlimited)
+- **🤖 Auto Swap Finding**: Automatically find swaps across all desired sections in priority order
 - **📊 Dashboard**: Overview of current section, pending requests, and swap statistics
 - **🔄 Swap Algorithm**: Intelligent system to find direct and multi-step swap opportunities
-- **📋 Swap Sheet**: View all students and their current/desired sections
+- **📧 Email Notifications**: Get notified when potential swaps are found
+- **📋 Swap Sheet**: View all students and their current/desired sections with priority display
 - **💾 PostgreSQL Integration**: Persistent data storage with relational database
 - **⚡ Real-time Updates**: Dynamic content updates without page refresh
 
@@ -119,9 +122,24 @@ Section-Swap-KIIT/
 | GET | `/api/profile` | Get student profile |
 | PUT | `/api/profile` | Update profile |
 | GET | `/api/dashboard` | Get dashboard data |
-| POST | `/api/find-swap` | Find swap opportunities |
+| POST | `/api/find-swap` | Find swap for specific section |
+| POST | `/api/find-all-swaps` | **NEW**: Auto-find swaps across all desired sections |
 | POST | `/api/swap-request` | Create swap request |
 | GET | `/api/swap-history` | Get swap history |
+
+## 🎯 Multiple Desired Sections Feature
+
+### How It Works
+1. **Set Priority Order**: Add multiple desired sections in your preferred order
+2. **Auto-Find Swaps**: The system searches for swaps in priority order
+3. **Smart Matching**: Finds both direct and multi-step swaps
+4. **Email Notifications**: Get notified when swaps are found
+
+### Benefits
+- **Flexibility**: No limit on number of desired sections
+- **Priority-Based**: Higher priority sections are checked first
+- **Automated**: One click to find all available swaps
+- **Efficient**: Reduces time spent manually checking sections
 
 ## 🗄️ Database Schema
 
@@ -133,7 +151,7 @@ Section-Swap-KIIT/
 - `email` - Email address
 - `password_hash` - Encrypted password
 - `current_section` - Current allotted section
-- `desired_section` - Preferred section
+- `desired_sections` - **NEW**: JSON array of desired sections in priority order
 
 ### Additional Tables
 - `swap_requests` - Tracks swap requests and status
