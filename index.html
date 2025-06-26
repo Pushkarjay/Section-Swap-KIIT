@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Section Swap System</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2980b9;
+            --accent-color: #e74c3c;
+            --light-color: #ecf0f1;
+            --dark-color: #2c3e50;
+            --success-color: #2ecc71;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: var(--dark-color);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .card-title {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            border-bottom: 2px solid var(--light-color);
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+            transition: border 0.3s;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        .btn-success {
+            background-color: var(--success-color);
+        }
+        
+        .btn-success:hover {
+            background-color: #27ae60;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        th {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        
+        .swap-path {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f4fc;
+            border-left: 4px solid var(--primary-color);
+            border-radius: 4px;
+        }
+        
+        .swap-path h3 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+        
+        .swap-step {
+            margin-bottom: 10px;
+            padding-left: 20px;
+            position: relative;
+        }
+        
+        .swap-step:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: var(--accent-color);
+        }
+          .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background-color: var(--light-color);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .stat-card h3 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        
+        .stat-card p {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--dark-color);
+        }
+        
+        .dashboard-actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .dashboard-actions button {
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        .btn-danger {
+            background-color: var(--accent-color);
+        }
+        
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+        
+        .table-responsive {
+            overflow-x: auto;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .error {
+            color: var(--accent-color);
+            margin-top: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .section-badge {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .status-satisfied {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-looking {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .status-no-preference {
+            background-color: #f8f9fa;
+            color: #6c757d;
+            border: 1px solid #dee2e6;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            header {
+                padding: 15px 0;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .card {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Student Section Swap System</h1>
+            <p class="subtitle">Exchange sections with other students efficiently</p>
+        </div>
+    </header>
+      <div class="container">
+        <!-- Login Card -->
+        <div class="card" id="login-card">
+            <h2 class="card-title">Student Login</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-roll-number">Roll Number</label>
+                    <input type="text" id="login-roll-number" required placeholder="Enter your roll number">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" required placeholder="Enter your password">
+                </div>
+                <button type="submit">Login</button>
+                <div class="form-group" style="margin-top: 15px;">
+                    <p>Don't have an account? <a href="#" id="show-register">Register here</a></p>
+                </div>
+            </form>
+        </div>
+
+        <!-- Registration Card -->
+        <div class="card hidden" id="register-card">
+            <h2 class="card-title">Student Registration</h2>
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="reg-roll-number">Roll Number</label>
+                    <input type="text" id="reg-roll-number" required placeholder="Enter your roll number">
+                </div>
+                <div class="form-group">
+                    <label for="reg-name">Full Name</label>
+                    <input type="text" id="reg-name" required placeholder="Enter your full name">
+                </div>
+                <div class="form-group">
+                    <label for="reg-phone">Phone Number</label>
+                    <input type="tel" id="reg-phone" required placeholder="Enter your phone number">
+                </div>
+                <div class="form-group">
+                    <label for="reg-email">Email (Optional)</label>
+                    <input type="email" id="reg-email" placeholder="Enter your email">
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">Password</label>
+                    <input type="password" id="reg-password" required placeholder="Create a password">
+                </div>
+                <div class="form-group">
+                    <label for="reg-current-section">Current Section</label>
+                    <select id="reg-current-section" required>
+                        <option value="">Select your current section</option>
+                    </select>
+                </div>
+                <button type="submit">Register</button>
+                <div class="form-group" style="margin-top: 15px;">
+                    <p>Already have an account? <a href="#" id="show-login">Login here</a></p>
+                </div>
+            </form>
+        </div>
+
+        <!-- Dashboard Card -->
+        <div class="card hidden" id="dashboard-card">
+            <h2 class="card-title">Dashboard</h2>
+            <div class="dashboard-stats">
+                <div class="stat-card">
+                    <h3>Current Section</h3>
+                    <p id="dash-current-section">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Desired Section</h3>
+                    <p id="dash-desired-section">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Pending Requests</h3>
+                    <p id="dash-pending-requests">0</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Swaps</h3>
+                    <p id="dash-total-swaps">0</p>
+                </div>
+            </div>
+            <div class="dashboard-actions">
+                <button id="view-profile-btn" class="btn-success">View Profile</button>
+                <button id="find-swap-dashboard-btn">Find Swap</button>
+                <button id="view-sheet-btn">View Swap Sheet</button>
+                <button id="logout-btn" class="btn-danger">Logout</button>
+            </div>
+        </div>
+
+        <!-- Profile Card -->
+        <div class="card hidden" id="profile-card">
+            <h2 class="card-title">Student Profile</h2>
+            <form id="profile-form">
+                <div class="form-group">
+                    <label for="profile-roll">Roll Number</label>
+                    <input type="text" id="profile-roll" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="profile-name">Full Name</label>
+                    <input type="text" id="profile-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="profile-phone">Phone Number</label>
+                    <input type="tel" id="profile-phone" required>
+                </div>
+                <div class="form-group">
+                    <label for="profile-email">Email</label>
+                    <input type="email" id="profile-email">
+                </div>
+                <div class="form-group">
+                    <label for="profile-current-section">Current Section</label>
+                    <input type="text" id="profile-current-section" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="profile-desired-section">Desired Section</label>
+                    <select id="profile-desired-section">
+                        <option value="">Select desired section</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-success">Update Profile</button>
+                <button type="button" id="back-to-dashboard">Back to Dashboard</button>
+            </form>
+        </div>
+
+        <!-- Swap Sheet Card -->
+        <div class="card hidden" id="sheet-card">
+            <h2 class="card-title">Student Swap Sheet</h2>
+            <div class="table-responsive">
+                <table id="swap-sheet-table">
+                    <thead>
+                        <tr>
+                            <th>Roll Number</th>
+                            <th>Name</th>
+                            <th>Current Section</th>
+                            <th>Desired Section</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="swap-sheet-body">
+                        <!-- Data will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+            <button type="button" id="back-to-dashboard-from-sheet">Back to Dashboard</button>
+        </div>
+        
+        <div class="card hidden" id="swap-card">
+            <h2 class="card-title">Section Swap Request</h2>
+            <div class="form-group">
+                <label for="current-section">Your Current Section</label>
+                <input type="text" id="current-section" readonly>
+            </div>
+            <div class="form-group">
+                <label for="desired-section">Desired Section</label>
+                <select id="desired-section" required>
+                    <option value="">Select desired section</option>
+                    <!-- Sections will be populated dynamically -->
+                </select>
+                <div id="section-error" class="error hidden"></div>
+            </div>
+            <button id="find-swap-btn">Find Swap Options</button>
+            
+            <div id="swap-results" class="hidden">
+                <h3>Swap Options</h3>
+                <div id="direct-swap" class="hidden">
+                    <p>Direct swap available!</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Current Section</th>
+                                <th>Desired Section</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="direct-swap-table">
+                            <!-- Direct swap info will be added here -->
+                        </tbody>
+                    </table>
+                    <button id="confirm-direct-swap" class="btn-success">Confirm Direct Swap</button>
+                </div>
+                
+                <div id="multi-swap" class="hidden">
+                    <p>No direct swap available, but we found a multi-step swap path:</p>
+                    <div class="swap-path">
+                        <h3>Swap Path</h3>
+                        <div id="swap-steps">
+                            <!-- Swap steps will be added here -->
+                        </div>
+                    </div>
+                    <button id="confirm-multi-swap" class="btn-success">Confirm Multi-Swap</button>
+                </div>
+                
+                <div id="no-swap" class="hidden">
+                    <p>No swap options available at this time. Please check back later.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card hidden" id="confirmation-card">
+            <h2 class="card-title">Swap Confirmation</h2>
+            <div id="confirmation-message"></div>
+            <button id="back-to-swap">Back to Swap</button>
+        </div>
+    </div>
+    
+    <footer>
+        <div class="container">
+            <p>© 2023 Student Section Swap System. All rights reserved.</p>
+        </div>
+    </footer>    <script>
+        // API Base URL
+        const API_BASE = 'http://localhost:3000/api';
+        
+        // Authentication token
+        let authToken = localStorage.getItem('authToken');
+        let currentUser = null;
+
+        // All possible sections (1-50)
+        const allSections = Array.from({length: 50}, (_, i) => (i + 1).toString());
+
+        // DOM elements
+        const loginCard = document.getElementById('login-card');
+        const registerCard = document.getElementById('register-card');
+        const dashboardCard = document.getElementById('dashboard-card');
+        const profileCard = document.getElementById('profile-card');
+        const sheetCard = document.getElementById('sheet-card');
+        const swapCard = document.getElementById('swap-card');
+        const confirmationCard = document.getElementById('confirmation-card');
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            populateAllSectionSelects();
+            
+            if (authToken) {
+                validateTokenAndShowDashboard();
+            } else {
+                showLogin();
+            }
+            
+            setupEventListeners();
+        });
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Login/Register toggles
+            document.getElementById('show-register').addEventListener('click', (e) => {
+                e.preventDefault();
+                showRegister();
+            });
+            
+            document.getElementById('show-login').addEventListener('click', (e) => {
+                e.preventDefault();
+                showLogin();
+            });
+
+            // Forms
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            document.getElementById('register-form').addEventListener('submit', handleRegister);
+            document.getElementById('profile-form').addEventListener('submit', handleProfileUpdate);
+
+            // Dashboard buttons
+            document.getElementById('view-profile-btn').addEventListener('click', showProfile);
+            document.getElementById('find-swap-dashboard-btn').addEventListener('click', showSwapCard);
+            document.getElementById('view-sheet-btn').addEventListener('click', showSwapSheet);
+            document.getElementById('logout-btn').addEventListener('click', handleLogout);
+
+            // Back buttons
+            document.getElementById('back-to-dashboard').addEventListener('click', showDashboard);
+            document.getElementById('back-to-dashboard-from-sheet').addEventListener('click', showDashboard);
+
+            // Existing swap functionality
+            document.getElementById('find-swap-btn').addEventListener('click', findSwapOptions);
+            document.getElementById('confirm-direct-swap').addEventListener('click', confirmDirectSwap);
+            document.getElementById('confirm-multi-swap').addEventListener('click', confirmMultiSwap);
+            document.getElementById('back-to-swap').addEventListener('click', showSwapCard);
+        }
+
+        // API Functions
+        async function apiCall(endpoint, method = 'GET', data = null) {
+            const config = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (authToken) {
+                config.headers['Authorization'] = `Bearer ${authToken}`;
+            }
+
+            if (data) {
+                config.body = JSON.stringify(data);
+            }
+
+            try {
+                const response = await fetch(API_BASE + endpoint, config);
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.error || 'API call failed');
+                }
+                
+                return result;
+            } catch (error) {
+                console.error('API Error:', error);
+                throw error;
+            }
+        }
+
+        // Authentication functions
+        async function handleLogin(e) {
+            e.preventDefault();
+            
+            const rollNumber = document.getElementById('login-roll-number').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            try {
+                const result = await apiCall('/login', 'POST', { rollNumber, password });
+                
+                authToken = result.token;
+                localStorage.setItem('authToken', authToken);
+                currentUser = result.student;
+                
+                showDashboard();
+            } catch (error) {
+                alert('Login failed: ' + error.message);
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            
+            const data = {
+                rollNumber: document.getElementById('reg-roll-number').value.trim(),
+                name: document.getElementById('reg-name').value.trim(),
+                phoneNumber: document.getElementById('reg-phone').value.trim(),
+                email: document.getElementById('reg-email').value.trim(),
+                password: document.getElementById('reg-password').value,
+                currentSection: document.getElementById('reg-current-section').value
+            };
+
+            try {
+                await apiCall('/register', 'POST', data);
+                alert('Registration successful! Please login.');
+                showLogin();
+            } catch (error) {
+                alert('Registration failed: ' + error.message);
+            }
+        }
+
+        async function validateTokenAndShowDashboard() {
+            try {
+                const profile = await apiCall('/profile');
+                currentUser = profile;
+                showDashboard();
+            } catch (error) {
+                localStorage.removeItem('authToken');
+                authToken = null;
+                showLogin();
+            }
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('authToken');
+            authToken = null;
+            currentUser = null;
+            showLogin();
+        }
+
+        // Profile functions
+        async function showProfile() {
+            try {
+                const profile = await apiCall('/profile');
+                
+                document.getElementById('profile-roll').value = profile.roll_number;
+                document.getElementById('profile-name').value = profile.name;
+                document.getElementById('profile-phone').value = profile.phone_number;
+                document.getElementById('profile-email').value = profile.email || '';
+                document.getElementById('profile-current-section').value = profile.current_section;
+                
+                // Populate desired section dropdown
+                const desiredSelect = document.getElementById('profile-desired-section');
+                desiredSelect.innerHTML = '<option value="">Select desired section</option>';
+                allSections.forEach(section => {
+                    if (section !== profile.current_section) {
+                        const option = document.createElement('option');
+                        option.value = section;
+                        option.textContent = section;
+                        option.selected = section === profile.desired_section;
+                        desiredSelect.appendChild(option);
+                    }
+                });
+                
+                hideAllCards();
+                profileCard.classList.remove('hidden');
+            } catch (error) {
+                alert('Failed to load profile: ' + error.message);
+            }
+        }
+
+        async function handleProfileUpdate(e) {
+            e.preventDefault();
+            
+            const data = {
+                name: document.getElementById('profile-name').value.trim(),
+                phoneNumber: document.getElementById('profile-phone').value.trim(),
+                email: document.getElementById('profile-email').value.trim(),
+                desiredSection: document.getElementById('profile-desired-section').value
+            };
+
+            try {
+                await apiCall('/profile', 'PUT', data);
+                alert('Profile updated successfully!');
+                showDashboard();
+            } catch (error) {
+                alert('Failed to update profile: ' + error.message);
+            }
+        }
+
+        // Dashboard functions
+        async function showDashboard() {
+            try {
+                const dashboardData = await apiCall('/dashboard');
+                
+                document.getElementById('dash-current-section').textContent = dashboardData.student.current_section;
+                document.getElementById('dash-desired-section').textContent = dashboardData.student.desired_section || 'Not set';
+                document.getElementById('dash-pending-requests').textContent = dashboardData.pendingRequests;
+                document.getElementById('dash-total-swaps').textContent = dashboardData.totalSwaps;
+                
+                currentUser = dashboardData.student;
+                
+                hideAllCards();
+                dashboardCard.classList.remove('hidden');
+            } catch (error) {
+                alert('Failed to load dashboard: ' + error.message);
+            }
+        }        async function showSwapSheet() {
+            try {
+                const dashboardData = await apiCall('/dashboard');
+                const tbody = document.getElementById('swap-sheet-body');
+                tbody.innerHTML = '';
+                
+                dashboardData.allStudents.forEach(student => {
+                    const row = document.createElement('tr');
+                    const status = student.current_section === student.desired_section ? 
+                        'Satisfied' : 
+                        (student.desired_section ? 'Looking for swap' : 'No preference');
+                    
+                    const statusClass = status === 'Satisfied' ? 'status-satisfied' : 
+                                       status === 'Looking for swap' ? 'status-looking' : 'status-no-preference';
+                    
+                    row.innerHTML = `
+                        <td>${student.roll_number}</td>
+                        <td>${student.name}</td>
+                        <td><span class="section-badge">${student.current_section}</span></td>
+                        <td>${student.desired_section ? `<span class="section-badge">${student.desired_section}</span>` : '-'}</td>
+                        <td><span class="status-badge ${statusClass}">${status}</span></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                hideAllCards();
+                sheetCard.classList.remove('hidden');
+            } catch (error) {
+                alert('Failed to load swap sheet: ' + error.message);
+            }
+        }
+
+        // Swap functions
+        function showSwapCard() {
+            document.getElementById('current-section').value = currentUser.current_section;
+            populateSections();
+            hideAllCards();
+            swapCard.classList.remove('hidden');
+        }
+
+        async function findSwapOptions() {
+            const desiredSection = document.getElementById('desired-section').value;
+            
+            if (!desiredSection) {
+                document.getElementById('section-error').textContent = 'Please select a desired section';
+                document.getElementById('section-error').classList.remove('hidden');
+                return;
+            }
+            
+            document.getElementById('section-error').classList.add('hidden');
+            
+            try {
+                const result = await apiCall('/find-swap', 'POST', { desiredSection });
+                
+                // Hide all result sections
+                document.getElementById('swap-results').classList.remove('hidden');
+                document.getElementById('direct-swap').classList.add('hidden');
+                document.getElementById('multi-swap').classList.add('hidden');
+                document.getElementById('no-swap').classList.add('hidden');
+                
+                if (result.type === 'direct') {
+                    showDirectSwap(result.partner);
+                } else if (result.type === 'multi') {
+                    showMultiSwap(result.path);
+                } else {
+                    document.getElementById('no-swap').classList.remove('hidden');
+                }
+            } catch (error) {
+                alert('Failed to find swap options: ' + error.message);
+            }
+        }
+
+        function showDirectSwap(partner) {
+            document.getElementById('direct-swap-table').innerHTML = `
+                <tr>
+                    <td>${partner.roll_number}</td>
+                    <td>${partner.current_section}</td>
+                    <td>${partner.desired_section}</td>
+                    <td>Direct swap with you</td>
+                </tr>
+            `;
+            document.getElementById('direct-swap').classList.remove('hidden');
+        }
+
+        function showMultiSwap(path) {
+            const swapSteps = document.getElementById('swap-steps');
+            swapSteps.innerHTML = '';
+            
+            path.forEach((step, index) => {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = 'swap-step';
+                
+                if (index === 0) {
+                    stepDiv.textContent = `You give section ${step.from} and take section ${step.to}`;
+                } else {
+                    const student = step.student;
+                    stepDiv.textContent = `${student ? student.roll_number : 'Unknown'} gives section ${step.from} and takes section ${step.to}`;
+                }
+                
+                swapSteps.appendChild(stepDiv);
+            });
+            
+            document.getElementById('multi-swap').classList.remove('hidden');
+        }
+
+        async function confirmDirectSwap() {
+            const desiredSection = document.getElementById('desired-section').value;
+            
+            try {
+                await apiCall('/swap-request', 'POST', {
+                    targetSection: desiredSection,
+                    swapType: 'direct'
+                });
+                
+                document.getElementById('confirmation-message').innerHTML = `
+                    <p>Direct swap request submitted successfully!</p>
+                    <p><strong>Target section:</strong> ${desiredSection}</p>
+                    <p>The system will coordinate the swap automatically.</p>
+                `;
+                
+                hideAllCards();
+                confirmationCard.classList.remove('hidden');
+            } catch (error) {
+                alert('Failed to confirm swap: ' + error.message);
+            }
+        }
+
+        async function confirmMultiSwap() {
+            const desiredSection = document.getElementById('desired-section').value;
+            
+            try {
+                const result = await apiCall('/find-swap', 'POST', { desiredSection });
+                
+                await apiCall('/swap-request', 'POST', {
+                    targetSection: desiredSection,
+                    swapType: 'multi',
+                    swapPath: result.path
+                });
+                
+                document.getElementById('confirmation-message').innerHTML = `
+                    <p>Multi-step swap request submitted successfully!</p>
+                    <p><strong>Target section:</strong> ${desiredSection}</p>
+                    <p>The system will coordinate these swaps automatically.</p>
+                `;
+                
+                hideAllCards();
+                confirmationCard.classList.remove('hidden');
+            } catch (error) {
+                alert('Failed to confirm multi-swap: ' + error.message);
+            }
+        }
+
+        // Utility functions
+        function hideAllCards() {
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.add('hidden');
+            });
+        }
+
+        function showLogin() {
+            hideAllCards();
+            loginCard.classList.remove('hidden');
+        }
+
+        function showRegister() {
+            hideAllCards();
+            registerCard.classList.remove('hidden');
+        }
+
+        function populateAllSectionSelects() {
+            const selects = ['reg-current-section', 'desired-section'];
+            
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    allSections.forEach(section => {
+                        const option = document.createElement('option');
+                        option.value = section;
+                        option.textContent = section;
+                        select.appendChild(option);
+                    });
+                }
+            });
+        }
+
+        function populateSections() {
+            const desiredSelect = document.getElementById('desired-section');
+            desiredSelect.innerHTML = '<option value="">Select desired section</option>';
+            
+            allSections.forEach(section => {
+                if (section !== currentUser.current_section) {
+                    const option = document.createElement('option');
+                    option.value = section;
+                    option.textContent = section;
+                    desiredSelect.appendChild(option);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
