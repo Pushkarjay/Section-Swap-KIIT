@@ -1795,13 +1795,8 @@
                         `;
                     }).join('');
                     
-                    const firstStepStudent = swap.path[0]?.student;
-                    const initiateContact = firstStepStudent && firstStepStudent.phone_number ? 
-                        `<div class="initiate-swap" style="margin: 15px 0; padding: 15px; background: #e8f5e8; border-radius: 8px; border-left: 4px solid #28a745;">
-                            <strong>🚀 Start the swap with:</strong> ${firstStepStudent.name} (${firstStepStudent.roll_number})
-                            <br><span style="font-size: 14px; color: #666;">Contact them first to initiate this multi-step swap sequence</span>
-                            <br><button class="contact-btn primary" style="margin-top: 8px;" onclick="copyToClipboard('${firstStepStudent.phone_number}', '${firstStepStudent.name}')">📞 Copy Contact: ${firstStepStudent.phone_number}</button>
-                        </div>` : '';
+                    // Remove the "Start the swap with" section - users can see contacts in the table
+                    const initiateContact = '';
                     
                     swapDiv.innerHTML = `
                         <h4>🔀 Multi-Step Swap to Section ${swap.targetSection}</h4>
@@ -1823,7 +1818,7 @@
                         </table>
                         ${initiateContact}
                         <p style="margin-top: 10px; font-size: 14px; color: #666;">
-                            💡 <strong>Action Required:</strong> Contact the first student in the sequence to initiate this multi-step swap through official KIIT procedures.
+                            💡 <strong>Action Required:</strong> Contact the students in sequence order to arrange this multi-step swap through official KIIT procedures.
                         </p>
                     `;
                 }
