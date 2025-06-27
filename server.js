@@ -759,7 +759,7 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
         
         // Get all students for swap sheet
         const [allStudents] = await executeQuery(`
-            SELECT roll_number, name, current_section, desired_sections
+            SELECT id, roll_number, name, current_section, desired_sections
             FROM students
             ORDER BY roll_number
         `);
@@ -911,7 +911,7 @@ app.get('/api/health', async (req, res) => {
     res.json(health);
 });
 
-// Comprehensive multi-step swap algorithm using graph-based approach
+// Comprehensive multi-step swap algorithm using cycle detection
 async function findMultiStepSwap(fromSection, toSection, excludeId) {
     try {
         // Get all students and their desired swaps
@@ -946,8 +946,8 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
             }
         });
         
-        // Use BFS to find the shortest swap path
-        const path = findSwapPath(fromSection, toSection, validStudents, 4); // Max 4 steps
+        // Find swap cycles using improved algorithm
+        const path = findSwapCycle(fromSection, toSection, validStudents, 4);
         return path;
     } catch (error) {
         console.error('Error in findMultiStepSwap:', error);
@@ -955,75 +955,81 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
     }
 }
 
-// BFS-based swap path finder
-function findSwapPath(startSection, targetSection, students, maxDepth) {
-    // Build a graph of possible swaps
-    const graph = {};
-    
-    // For each student, add edges from their current section to their desired sections
+// Improved cycle detection algorithm
+function findSwapCycle(startSection, targetSection, students, maxDepth) {
+    // Create a mapping of sections to students
+    const sectionToStudents = {};
     students.forEach(student => {
-        const currentSection = student.current_section;
-        
-        if (!graph[currentSection]) {
-            graph[currentSection] = [];
+        if (!sectionToStudents[student.current_section]) {
+            sectionToStudents[student.current_section] = [];
         }
-        
-        student.desired_sections_parsed.forEach(desiredSection => {
-            // Find students in the desired section who want the current section
-            const partnersInDesiredSection = students.filter(partner => 
-                partner.current_section === desiredSection &&
-                partner.desired_sections_parsed.includes(currentSection)
-            );
-            
-            if (partnersInDesiredSection.length > 0) {
-                // Add edge with the student who would move
-                graph[currentSection].push({
-                    to: desiredSection,
-                    student: partnersInDesiredSection[0] // Take first available partner
-                });
-            }
-        });
+        sectionToStudents[student.current_section].push(student);
     });
     
-    // BFS to find shortest path
-    const queue = [{ section: startSection, path: [] }];
-    const visited = new Set([startSection]);
-    
-    while (queue.length > 0) {
-        const { section: currentSection, path } = queue.shift();
+    // DFS to find cycles
+    function dfs(currentSection, target, path, visited, depth) {
+        if (depth > maxDepth) return null;
+        if (currentSection === target && path.length > 0) {
+            return path; // Found a cycle back to target
+        }
         
-        if (path.length >= maxDepth) continue;
+        // Get students currently in this section
+        const studentsInSection = sectionToStudents[currentSection] || [];
         
-        const neighbors = graph[currentSection] || [];
-        
-        for (const neighbor of neighbors) {
-            if (neighbor.to === targetSection) {
-                // Found a path to target section
-                return [...path, {
-                    from: currentSection,
-                    to: neighbor.to,
-                    student: neighbor.student
-                }];
-            }
-            
-            if (!visited.has(neighbor.to)) {
-                visited.add(neighbor.to);
-                queue.push({
-                    section: neighbor.to,
-                    path: [...path, {
-                        from: currentSection,
-                        to: neighbor.to,
-                        student: neighbor.student
-                    }]
-                });
+        for (const student of studentsInSection) {
+            // Check each section this student wants to go to
+            for (const desiredSection of student.desired_sections_parsed) {
+                if (visited.has(desiredSection) && desiredSection !== target) continue;
+                
+                // For the last step, make sure someone in target section wants our start section
+                if (desiredSection === target) {
+                    // Check if anyone in target section wants to come to start section
+                    const studentsInTarget = sectionToStudents[target] || [];
+                    const canCompleteSwap = studentsInTarget.some(targetStudent => 
+                        targetStudent.desired_sections_parsed.includes(startSection)
+                    );
+                    
+                    if (canCompleteSwap) {
+                        const completingStudent = studentsInTarget.find(targetStudent => 
+                            targetStudent.desired_sections_parsed.includes(startSection)
+                        );
+                        
+                        return [...path, {
+                            from: currentSection,
+                            to: desiredSection,
+                            student: completingStudent
+                        }];
+                    }
+                } else {
+                    // Continue the chain
+                    const newVisited = new Set(visited);
+                    newVisited.add(currentSection);
+                    
+                    const result = dfs(
+                        desiredSection, 
+                        target, 
+                        [...path, {
+                            from: currentSection,
+                            to: desiredSection,
+                            student: student
+                        }], 
+                        newVisited, 
+                        depth + 1
+                    );
+                    
+                    if (result) return result;
+                }
             }
         }
+        
+        return null;
     }
     
-    return null; // No path found
+    // Start DFS from the start section
+    return dfs(startSection, targetSection, [], new Set(), 0);
 }
 
-// New function to check if any student has potential swaps (direct or multi-step)
+// Enhanced function to check if any student has potential swaps (direct or multi-step)
 async function checkAllStudentMatches() {
     try {
         const [allStudents] = await executeQuery(`
@@ -1067,7 +1073,7 @@ async function checkAllStudentMatches() {
             for (const targetSection of student.desired_sections_parsed) {
                 if (targetSection === student.current_section) continue;
                 
-                // Check for direct matches first
+                // Check for direct matches first (faster)
                 const directMatches = validStudents.filter(other => 
                     other.current_section === targetSection && 
                     other.id !== student.id &&
@@ -1080,14 +1086,10 @@ async function checkAllStudentMatches() {
                 }
                 
                 // Check for multi-step matches
-                const multiStepPath = findSwapPath(
-                    student.current_section, 
-                    targetSection, 
-                    validStudents.filter(s => s.id !== student.id),
-                    4 // Max 4 steps
-                );
+                const otherStudents = validStudents.filter(s => s.id !== student.id);
+                const cycle = findSwapCycle(student.current_section, targetSection, otherStudents, 4);
                 
-                if (multiStepPath && multiStepPath.length > 0) {
+                if (cycle && cycle.length > 0) {
                     hasMatch = true;
                     break;
                 }
@@ -1149,7 +1151,7 @@ app.get('/api/test-multistep', async (req, res) => {
             }
         ];
         
-        // Test the path finding for each student
+        // Test the improved cycle finding for each student
         const results = {};
         
         for (const student of testStudents) {
@@ -1157,25 +1159,77 @@ app.get('/api/test-multistep', async (req, res) => {
             
             for (const targetSection of student.desired_sections_parsed) {
                 const otherStudents = testStudents.filter(s => s.id !== student.id);
-                const path = findSwapPath(student.current_section, targetSection, otherStudents, 4);
+                
+                // Test both direct and multi-step
+                const directMatches = otherStudents.filter(other => 
+                    other.current_section === targetSection && 
+                    other.desired_sections_parsed.includes(student.current_section)
+                );
+                
+                const cycle = findSwapCycle(student.current_section, targetSection, otherStudents, 4);
                 
                 results[student.name][`to_section_${targetSection}`] = {
-                    found: !!path,
-                    path: path || null,
-                    pathLength: path ? path.length : 0
+                    directMatch: directMatches.length > 0,
+                    directPartners: directMatches.map(m => m.name),
+                    multiStepPath: cycle || null,
+                    hasAnyMatch: directMatches.length > 0 || (cycle && cycle.length > 0)
                 };
             }
         }
         
+        // Simulate the student status calculation
+        const statusResults = {};
+        for (const student of testStudents) {
+            const hasDesiredSections = student.desired_sections_parsed.length > 0;
+            const isCurrentSectionDesired = student.desired_sections_parsed.includes(student.current_section);
+            
+            let hasAnyMatch = false;
+            if (hasDesiredSections && !isCurrentSectionDesired) {
+                for (const targetSection of student.desired_sections_parsed) {
+                    if (targetSection === student.current_section) continue;
+                    
+                    const otherStudents = testStudents.filter(s => s.id !== student.id);
+                    
+                    // Check direct matches
+                    const directMatches = otherStudents.filter(other => 
+                        other.current_section === targetSection && 
+                        other.desired_sections_parsed.includes(student.current_section)
+                    );
+                    
+                    if (directMatches.length > 0) {
+                        hasAnyMatch = true;
+                        break;
+                    }
+                    
+                    // Check multi-step
+                    const cycle = findSwapCycle(student.current_section, targetSection, otherStudents, 4);
+                    if (cycle && cycle.length > 0) {
+                        hasAnyMatch = true;
+                        break;
+                    }
+                }
+            }
+            
+            statusResults[student.name] = {
+                hasDesiredSections,
+                isCurrentSectionDesired,
+                hasAnyMatch,
+                status: !hasDesiredSections ? 'No preference' : 
+                       isCurrentSectionDesired ? 'Satisfied' :
+                       hasAnyMatch ? 'Matches found' : 'Looking for swap'
+            };
+        }
+        
         res.json({
             testStudents,
-            swapPaths: results,
+            swapAnalysis: results,
+            statusAnalysis: statusResults,
             explanation: {
                 scenario: "Testing Suchit (10→20,30), Aman (20→30,40), Antara (30→10,40) multi-step matching",
-                expectedPaths: {
-                    "Suchit to 30": "10→20→30 (via Aman)",
-                    "Aman to 40": "20→30→40 (via Antara)", 
-                    "Antara to 10": "30→20→10 (via Aman) OR direct 30→10 if Suchit wants 30"
+                expectedResults: {
+                    "Suchit": "Should have matches found (wants 30, Antara in 30 wants 10)",
+                    "Aman": "Should have matches found (wants 30, Antara in 30 wants something else, cycle possible)",
+                    "Antara": "Should have matches found (wants 10, Suchit in 10 wants something else, cycle possible)"
                 }
             }
         });
