@@ -916,6 +916,91 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
     }
 }
 
+// Debug endpoint to check specific swap scenarios
+app.get('/api/debug-swaps', async (req, res) => {
+    try {
+        // Get all students with their parsed desired sections
+        const [allStudents] = await executeQuery(`
+            SELECT id, roll_number, name, current_section, desired_sections
+            FROM students
+            ORDER BY roll_number
+        `);
+        
+        const studentsWithParsed = allStudents.map(student => {
+            let parsedDesired = [];
+            try {
+                parsedDesired = student.desired_sections ? JSON.parse(student.desired_sections) : [];
+            } catch (e) {
+                console.error('Parse error for student:', student.roll_number, e);
+            }
+            
+            return {
+                ...student,
+                desired_sections_parsed: parsedDesired
+            };
+        });
+        
+        // Find potential direct swaps
+        const potentialSwaps = [];
+        
+        for (let i = 0; i < studentsWithParsed.length; i++) {
+            const student1 = studentsWithParsed[i];
+            
+            if (!student1.desired_sections_parsed || student1.desired_sections_parsed.length === 0) continue;
+            
+            for (let j = i + 1; j < studentsWithParsed.length; j++) {
+                const student2 = studentsWithParsed[j];
+                
+                if (!student2.desired_sections_parsed || student2.desired_sections_parsed.length === 0) continue;
+                
+                // Check if they can swap directly
+                const student1WantsStudent2Section = student1.desired_sections_parsed.includes(student2.current_section);
+                const student2WantsStudent1Section = student2.desired_sections_parsed.includes(student1.current_section);
+                
+                if (student1WantsStudent2Section && student2WantsStudent1Section) {
+                    potentialSwaps.push({
+                        student1: {
+                            roll: student1.roll_number,
+                            name: student1.name,
+                            current: student1.current_section,
+                            wants: student1.desired_sections_parsed
+                        },
+                        student2: {
+                            roll: student2.roll_number,
+                            name: student2.name,
+                            current: student2.current_section,
+                            wants: student2.desired_sections_parsed
+                        },
+                        swapSections: `${student1.current_section} ↔ ${student2.current_section}`
+                    });
+                }
+            }
+        }
+        
+        res.json({
+            totalStudents: studentsWithParsed.length,
+            potentialDirectSwaps: potentialSwaps,
+            studentsWantingSection28: studentsWithParsed.filter(s => 
+                s.desired_sections_parsed && s.desired_sections_parsed.includes('28')
+            ).map(s => ({
+                roll: s.roll_number,
+                name: s.name,
+                current: s.current_section,
+                wants: s.desired_sections_parsed
+            })),
+            studentsInSection28: studentsWithParsed.filter(s => s.current_section === '28').map(s => ({
+                roll: s.roll_number,
+                name: s.name,
+                current: s.current_section,
+                wants: s.desired_sections_parsed
+            }))
+        });
+    } catch (error) {
+        console.error('Debug swaps error:', error);
+        res.status(500).json({ error: 'Debug failed', details: error.message });
+    }
+});
+
 // Start server first, then initialize database
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
