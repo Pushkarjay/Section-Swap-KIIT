@@ -1791,17 +1791,27 @@
                 } else if (swap.type === 'multi') {
                     // Multi-step swap display with tabular format
                     const pathRows = swap.path.map((step, index) => {
-                        const studentInfo = step.student ? 
-                            `<strong>${step.student.name}</strong> (${step.student.roll_number})` : 
-                            'Multiple Students';
+                        let studentInfo, contactInfo, rowClass = '';
                         
-                        const contactInfo = step.student && step.student.phone_number ? 
-                            `<div class="phone-display">📞 ${step.student.phone_number}</div>
-                             <button class="contact-btn small" onclick="copyToClipboard('${step.student.phone_number}', '${step.student.name}')">Copy</button>` : 
-                            '<div class="phone-display">📞 Not provided</div>';
+                        if (step.isCurrentUser) {
+                            // This is the current user's step
+                            studentInfo = `<strong style="color: #007bff;">YOU</strong> (Your step in the swap)`;
+                            contactInfo = '<div class="phone-display" style="color: #007bff;">📞 This is your step!</div>';
+                            rowClass = ' style="background-color: #e3f2fd; font-weight: bold;"';
+                        } else if (step.student) {
+                            // This is another student
+                            studentInfo = `<strong>${step.student.name}</strong> (${step.student.roll_number})`;
+                            contactInfo = step.student.phone_number ? 
+                                `<div class="phone-display">📞 ${step.student.phone_number}</div>
+                                 <button class="contact-btn small" onclick="copyToClipboard('${step.student.phone_number}', '${step.student.name}')">Copy</button>` : 
+                                '<div class="phone-display">📞 Not provided</div>';
+                        } else {
+                            studentInfo = 'Multiple Students';
+                            contactInfo = '<div class="phone-display">📞 Not provided</div>';
+                        }
                         
                         return `
-                            <tr>
+                            <tr${rowClass}>
                                 <td class="step-number">${index + 1}</td>
                                 <td>Section ${step.from}</td>
                                 <td class="swap-arrow">→</td>
