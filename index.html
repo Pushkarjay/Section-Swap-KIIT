@@ -439,6 +439,75 @@
             color: #1976d2;
         }
 
+        .swap-path {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .swap-step {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            position: relative;
+        }
+
+        .step-number {
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .step-details {
+            flex: 1;
+        }
+
+        .step-sections {
+            font-weight: bold;
+            color: #1976d2;
+            margin-bottom: 5px;
+        }
+
+        .step-student {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .step-arrow {
+            text-align: center;
+            font-size: 20px;
+            color: #007bff;
+            margin: 5px 0;
+            margin-left: 45px;
+        }
+
+        .multi-swap-summary {
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+            color: #1976d2;
+        }
+
+        .swap-opportunity[data-type="multi"] {
+            border-left-color: #ff9800;
+        }
+
+        .swap-opportunity[data-type="direct"] {
+            border-left-color: #4caf50;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -1524,24 +1593,60 @@
             availableSwaps.forEach(swap => {
                 const swapDiv = document.createElement('div');
                 swapDiv.className = 'swap-opportunity';
+                swapDiv.setAttribute('data-type', swap.type || 'direct');
                 
-                const partnersHtml = swap.partners.map(partner => 
-                    `<div class="swap-partner">
-                        <strong>${partner.name}</strong> (${partner.roll_number})
-                        <br>Section ${partner.current_section}
-                    </div>`
-                ).join('');
-                
-                swapDiv.innerHTML = `
-                    <h4>🔄 Direct Swap to Section ${swap.targetSection}</h4>
-                    <p><strong>Available Partners:</strong></p>
-                    <div class="swap-partners">
-                        ${partnersHtml}
-                    </div>
-                    <p style="margin-top: 10px; font-size: 14px; color: #666;">
-                        💡 <strong>Action Required:</strong> Contact these students directly to arrange your section swap through official KIIT procedures.
-                    </p>
-                `;
+                if (swap.type === 'direct' || (!swap.type && swap.partners)) {
+                    // Direct swap display (including legacy format)
+                    const partnersHtml = swap.partners.map(partner => 
+                        `<div class="swap-partner">
+                            <strong>${partner.name}</strong> (${partner.roll_number})
+                            <br>Section ${partner.current_section}
+                        </div>`
+                    ).join('');
+                    
+                    swapDiv.innerHTML = `
+                        <h4>🔄 Direct Swap to Section ${swap.targetSection}</h4>
+                        <p><strong>Available Partners:</strong></p>
+                        <div class="swap-partners">
+                            ${partnersHtml}
+                        </div>
+                        <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                            💡 <strong>Action Required:</strong> Contact these students directly to arrange your section swap through official KIIT procedures.
+                        </p>
+                    `;
+                } else if (swap.type === 'multi') {
+                    // Multi-step swap display
+                    const pathHtml = swap.path.map((step, index) => {
+                        const studentInfo = step.student ? 
+                            `<strong>${step.student.name}</strong> (${step.student.roll_number})` : 
+                            'Multiple Students';
+                        
+                        return `
+                            <div class="swap-step">
+                                <div class="step-number">${index + 1}</div>
+                                <div class="step-details">
+                                    <div class="step-sections">Section ${step.from} → Section ${step.to}</div>
+                                    <div class="step-student">${studentInfo}</div>
+                                </div>
+                                ${index < swap.path.length - 1 ? '<div class="step-arrow">↓</div>' : ''}
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    swapDiv.innerHTML = `
+                        <h4>🔀 Multi-Step Swap to Section ${swap.targetSection}</h4>
+                        <p><strong>Swap Sequence:</strong></p>
+                        <div class="swap-path">
+                            ${pathHtml}
+                        </div>
+                        <div class="multi-swap-summary">
+                            <strong>Result:</strong> You'll get Section ${swap.targetSection} through ${swap.path.length} swap steps
+                        </div>
+                        <p style="margin-top: 10px; font-size: 14px; color: #666;">
+                            💡 <strong>Action Required:</strong> Contact the first student in the sequence to initiate this multi-step swap through official KIIT procedures.
+                        </p>
+                    `;
+                }
                 
                 list.appendChild(swapDiv);
             });

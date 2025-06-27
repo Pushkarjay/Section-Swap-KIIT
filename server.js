@@ -816,12 +816,32 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
                     
                     if (directPartners.length > 0) {
                         availableSwaps.push({
+                            type: 'direct',
                             targetSection: targetSection,
                             partners: directPartners.map(p => ({
                                 id: p.id,
                                 roll_number: p.roll_number,
                                 name: p.name,
                                 current_section: p.current_section
+                            }))
+                        });
+                    }
+                    
+                    // Check for multi-step swaps for this section
+                    const multiStepPath = await findMultiStepSwap(student[0].current_section, targetSection, req.user.id);
+                    if (multiStepPath && multiStepPath.length > 0) {
+                        availableSwaps.push({
+                            type: 'multi',
+                            targetSection: targetSection,
+                            path: multiStepPath.map(step => ({
+                                from: step.from,
+                                to: step.to,
+                                student: step.student ? {
+                                    id: step.student.id,
+                                    roll_number: step.student.roll_number,
+                                    name: step.student.name,
+                                    current_section: step.student.current_section
+                                } : null
                             }))
                         });
                     }
