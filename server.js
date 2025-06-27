@@ -906,7 +906,7 @@ app.get('/api/health', async (req, res) => {
     res.json(health);
 });
 
-// Multi-step swap algorithm
+// Multi-step swap algorithm - find swap cycles
 async function findMultiStepSwap(fromSection, toSection, excludeId) {
     try {
         // Get all students and their desired swaps
@@ -923,10 +923,8 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
             [excludeId]
         );
         
-        // Create graph - map sections to desired sections with student info
-        const graph = {};
-        const sectionStudents = {}; // Map section -> array of students in that section
-        
+        // Group students by their current section
+        const sectionStudents = {};
         students.forEach(student => {
             if (!student.desired_sections) return;
             
@@ -934,81 +932,38 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
                 const desiredSections = JSON.parse(student.desired_sections);
                 if (!Array.isArray(desiredSections) || desiredSections.length === 0) return;
                 
-                // Group students by current section
                 if (!sectionStudents[student.current_section]) {
                     sectionStudents[student.current_section] = [];
                 }
-                sectionStudents[student.current_section].push(student);
-                
-                // For each desired section, create edges
-                desiredSections.forEach(desired => {
-                    if (desired !== student.current_section) {
-                        if (!graph[student.current_section]) {
-                            graph[student.current_section] = [];
-                        }
-                        // Only add if not already present
-                        if (!graph[student.current_section].includes(desired)) {
-                            graph[student.current_section].push(desired);
-                        }
-                    }
+                sectionStudents[student.current_section].push({
+                    ...student,
+                    desired_sections_parsed: desiredSections
                 });
             } catch (e) {
                 console.error('Error parsing desired_sections for student:', student.id, e);
             }
         });
         
-        // BFS to find path
-        const queue = [[fromSection]];
-        const visited = new Set([fromSection]);
+        // Try to find a swap cycle starting from fromSection to toSection
+        // We need to find students such that:
+        // User (fromSection) → Student1 (toSection) → Student2 (?) → ... → StudentN (fromSection)
         
-        while (queue.length > 0) {
-            const path = queue.shift();
-            const current = path[path.length - 1];
-            
-            if (current === toSection) {
-                // Convert path to steps with student info
-                const steps = [];
-                for (let i = 0; i < path.length - 1; i++) {
-                    const fromSection = path[i];
-                    const toSectionStep = path[i + 1];
-                    
-                    // Find a student in fromSection who wants toSectionStep
-                    let selectedStudent = null;
-                    if (sectionStudents[fromSection]) {
-                        selectedStudent = sectionStudents[fromSection].find(student => {
-                            try {
-                                const desiredSections = JSON.parse(student.desired_sections || '[]');
-                                return desiredSections.includes(toSectionStep);
-                            } catch (e) {
-                                return false;
-                            }
-                        });
-                    }
-                    
-                    steps.push({
-                        from: fromSection,
-                        to: toSectionStep,
-                        student: selectedStudent || null
-                    });
-                }
-                
-                // Validate the path makes logical sense
-                if (steps.length > 0 && steps.every(step => step.student !== null)) {
-                    return steps;
-                } else {
-                    // If we can't find valid students for all steps, return null
-                    console.log('Invalid multi-step path found - missing students for some steps');
-                    return null;
-                }
-            }
-            
-            if (graph[current]) {
-                for (const neighbor of graph[current]) {
-                    if (!visited.has(neighbor)) {
-                        visited.add(neighbor);
-                        queue.push([...path, neighbor]);
-                    }
-                }
+        // First, find students in toSection who want fromSection (potential final step)
+        const studentsInTarget = sectionStudents[toSection] || [];
+        const studentsWantingFromSection = studentsInTarget.filter(student => 
+            student.desired_sections_parsed.includes(fromSection)
+        );
+        
+        if (studentsWantingFromSection.length === 0) {
+            return null; // No one in target section wants our current section
+        }
+        
+        // For each potential final partner, try to find a path to complete the cycle
+        for (const finalPartner of studentsWantingFromSection) {
+            // Try to find intermediate steps
+            const cycle = await findSwapCycle(fromSection, toSection, finalPartner, sectionStudents, 3); // Max 3 steps
+            if (cycle) {
+                return cycle;
             }
         }
         
@@ -1017,6 +972,49 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
         console.error('Error in findMultiStepSwap:', error);
         return null;
     }
+}
+
+// Helper function to find a complete swap cycle
+async function findSwapCycle(fromSection, toSection, finalPartner, sectionStudents, maxDepth) {
+    // Simple case: direct swap is possible
+    if (finalPartner.desired_sections_parsed.includes(fromSection)) {
+        return [{
+            from: fromSection,
+            to: toSection,
+            student: finalPartner
+        }];
+    }
+    
+    // Try to find intermediate steps
+    // We need: fromSection → intermediate → toSection → fromSection
+    for (const intermediateSection of finalPartner.desired_sections_parsed) {
+        if (intermediateSection === fromSection || intermediateSection === toSection) continue;
+        
+        // Find students in intermediate section who want toSection
+        const intermediateStudents = sectionStudents[intermediateSection] || [];
+        const validIntermediateStudents = intermediateStudents.filter(student => 
+            student.desired_sections_parsed.includes(toSection)
+        );
+        
+        if (validIntermediateStudents.length > 0) {
+            // Found a valid 2-step cycle
+            const intermediateStudent = validIntermediateStudents[0];
+            return [
+                {
+                    from: fromSection,
+                    to: intermediateSection,
+                    student: intermediateStudent
+                },
+                {
+                    from: intermediateSection,
+                    to: toSection,
+                    student: finalPartner
+                }
+            ];
+        }
+    }
+    
+    return null; // No valid cycle found
 }
 
 // Debug endpoint to check specific swap scenarios
