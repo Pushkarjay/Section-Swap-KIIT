@@ -256,6 +256,12 @@
             border: 1px solid #ffeaa7;
         }
         
+        .status-matches-found {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
         .status-no-preference {
             background-color: #f8f9fa;
             color: #6c757d;
@@ -774,6 +780,7 @@
                         <select id="status-filter" style="padding: 5px;">
                             <option value="">All Status</option>
                             <option value="Looking for swap">Looking for swap</option>
+                            <option value="Matches found">Matches found</option>
                             <option value="Satisfied">Satisfied</option>
                             <option value="No preference">No preference</option>
                         </select>
@@ -1205,14 +1212,23 @@
         async function showSwapSheet() {
             try {
                 const dashboardData = await apiCall('/dashboard');
+                
+                // Process students and check for potential matches
                 allStudentsData = dashboardData.allStudents.map(student => {
                     // Handle desired sections array
                     const desiredSections = student.desired_sections || [];
                     const hasDesiredSections = desiredSections.length > 0;
                     
-                    const status = !hasDesiredSections ? 'No preference' : 
-                                  desiredSections.includes(student.current_section) ? 'Satisfied' : 
-                                  'Looking for swap';
+                    let status;
+                    if (!hasDesiredSections) {
+                        status = 'No preference';
+                    } else if (desiredSections.includes(student.current_section)) {
+                        status = 'Satisfied';
+                    } else {
+                        // Check if student has potential matches
+                        const hasMatches = checkForPotentialMatches(student, dashboardData.allStudents);
+                        status = hasMatches ? 'Matches found' : 'Looking for swap';
+                    }
                     
                     return {
                         ...student,
@@ -1263,7 +1279,8 @@
                 const row = document.createElement('tr');
                 
                 const statusClass = student.status === 'Satisfied' ? 'status-satisfied' : 
-                                   student.status === 'Looking for swap' ? 'status-looking' : 'status-no-preference';
+                                   student.status === 'Looking for swap' ? 'status-looking' : 
+                                   student.status === 'Matches found' ? 'status-matches-found' : 'status-no-preference';
                 
                 // Format desired sections display
                 const desiredDisplay = student.desired_sections.length > 0 ? 
@@ -1926,6 +1943,34 @@
                 
                 resultsDiv.innerHTML = html;
             }
+        }
+
+        // Function to check if a student has potential swap matches
+        function checkForPotentialMatches(student, allStudents) {
+            const desiredSections = student.desired_sections || [];
+            
+            if (desiredSections.length === 0) return false;
+            
+            // Check for direct matches
+            for (const targetSection of desiredSections) {
+                if (targetSection === student.current_section) continue;
+                
+                // Find students in target section who want student's current section
+                const directMatches = allStudents.filter(other => 
+                    other.current_section === targetSection && 
+                    other.roll_number !== student.roll_number &&
+                    other.desired_sections &&
+                    other.desired_sections.includes(student.current_section)
+                );
+                
+                if (directMatches.length > 0) {
+                    return true; // Found direct match
+                }
+            }
+            
+            // For now, we'll only check direct matches to keep it simple
+            // Multi-step matching would be more complex and resource-intensive
+            return false;
         }
     </script>
 </body>
