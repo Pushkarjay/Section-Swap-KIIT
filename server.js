@@ -793,11 +793,11 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
                     // Find students in target section who want current student's section
                     const [potentialPartners] = await executeQuery(
                         isPostgreSQL ? `
-                            SELECT id, roll_number, name, current_section, desired_sections 
+                            SELECT id, roll_number, name, phone_number, current_section, desired_sections 
                             FROM students 
                             WHERE current_section = $1 AND id != $2
                         ` : `
-                            SELECT id, roll_number, name, current_section, desired_sections 
+                            SELECT id, roll_number, name, phone_number, current_section, desired_sections 
                             FROM students 
                             WHERE current_section = ? AND id != ?
                         `,
@@ -822,6 +822,7 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
                                 id: p.id,
                                 roll_number: p.roll_number,
                                 name: p.name,
+                                phone_number: p.phone_number,
                                 current_section: p.current_section
                             }))
                         });
@@ -840,6 +841,7 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
                                     id: step.student.id,
                                     roll_number: step.student.roll_number,
                                     name: step.student.name,
+                                    phone_number: step.student.phone_number,
                                     current_section: step.student.current_section
                                 } : null
                             }))
@@ -910,11 +912,11 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
         // Get all students and their desired swaps
         const [students] = await executeQuery(
             isPostgreSQL ? `
-                SELECT id, roll_number, name, current_section, desired_sections 
+                SELECT id, roll_number, name, phone_number, current_section, desired_sections 
                 FROM students 
                 WHERE id != $1
             ` : `
-                SELECT id, roll_number, name, current_section, desired_sections 
+                SELECT id, roll_number, name, phone_number, current_section, desired_sections 
                 FROM students 
                 WHERE id != ?
             `,

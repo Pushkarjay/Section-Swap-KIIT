@@ -414,100 +414,102 @@
             padding: 15px;
             margin: 10px 0;
             border-left: 4px solid #4caf50;
-        }
-
-        .swap-opportunity h4 {
-            margin: 0 0 10px 0;
-            color: #1976d2;
-        }
-
-        .swap-partners {
             display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .swap-partner {
-            background: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 8px 12px;
-            font-size: 14px;
-        }
-
-        .swap-partner strong {
-            color: #1976d2;
-        }
-
-        .swap-path {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 10px 0;
-        }
-
-        .swap-step {
-            display: flex;
+            justify-content: space-between;
             align-items: center;
-            margin: 10px 0;
-            position: relative;
         }
 
-        .step-number {
-            background: #007bff;
-            color: white;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            margin-right: 15px;
-            flex-shrink: 0;
-        }
-
-        .step-details {
+        .partner-info {
             flex: 1;
         }
 
-        .step-sections {
-            font-weight: bold;
-            color: #1976d2;
-            margin-bottom: 5px;
+        .partner-contact {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
         }
 
-        .step-student {
+        .phone-number {
+            font-family: monospace;
             font-size: 14px;
             color: #666;
+            background: #f8f9fa;
+            padding: 4px 8px;
+            border-radius: 4px;
         }
 
-        .step-arrow {
-            text-align: center;
-            font-size: 20px;
-            color: #007bff;
-            margin: 5px 0;
-            margin-left: 45px;
+        .contact-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
         }
 
-        .multi-swap-summary {
-            background: #e3f2fd;
-            border: 1px solid #90caf9;
-            border-radius: 5px;
-            padding: 10px;
-            margin: 10px 0;
-            color: #1976d2;
+        .contact-btn:hover {
+            background: #0056b3;
         }
 
-        .swap-opportunity[data-type="multi"] {
-            border-left-color: #ff9800;
+        .contact-btn.small {
+            padding: 4px 8px;
+            font-size: 11px;
         }
 
-        .swap-opportunity[data-type="direct"] {
-            border-left-color: #4caf50;
+        .contact-btn.primary {
+            background: #28a745;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: bold;
         }
 
+        .contact-btn.primary:hover {
+            background: #1e7e34;
+        }
+
+        .step-contact {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .initiate-swap {
+            background: #e8f5e8;
+            border: 1px solid #28a745;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: #155724;
+        }
+
+        .copy-feedback {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+        }
+
+        .copy-feedback.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Responsive adjustments */
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -1410,6 +1412,52 @@
             }
         }
 
+        // Copy to clipboard function
+        function copyToClipboard(phoneNumber, studentName) {
+            navigator.clipboard.writeText(phoneNumber).then(() => {
+                showCopyFeedback(`📞 ${studentName}'s number copied: ${phoneNumber}`);
+            }).catch(err => {
+                // Fallback for older browsers
+                const textArea = document.createElement('textarea');
+                textArea.value = phoneNumber;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showCopyFeedback(`📞 ${studentName}'s number copied: ${phoneNumber}`);
+            });
+        }
+
+        // Show copy feedback
+        function showCopyFeedback(message) {
+            // Remove existing feedback
+            const existingFeedback = document.querySelector('.copy-feedback');
+            if (existingFeedback) {
+                existingFeedback.remove();
+            }
+
+            // Create new feedback element
+            const feedback = document.createElement('div');
+            feedback.className = 'copy-feedback';
+            feedback.textContent = message;
+            document.body.appendChild(feedback);
+
+            // Show feedback with animation
+            setTimeout(() => {
+                feedback.classList.add('show');
+            }, 100);
+
+            // Hide and remove feedback after 3 seconds
+            setTimeout(() => {
+                feedback.classList.remove('show');
+                setTimeout(() => {
+                    if (feedback.parentNode) {
+                        feedback.parentNode.removeChild(feedback);
+                    }
+                }, 300);
+            }, 3000);
+        }
+
         // Utility functions
         function hideAllCards() {
             document.querySelectorAll('.card').forEach(card => {
@@ -1599,8 +1647,14 @@
                     // Direct swap display (including legacy format)
                     const partnersHtml = swap.partners.map(partner => 
                         `<div class="swap-partner">
-                            <strong>${partner.name}</strong> (${partner.roll_number})
-                            <br>Section ${partner.current_section}
+                            <div class="partner-info">
+                                <strong>${partner.name}</strong> (${partner.roll_number})
+                                <br>Section ${partner.current_section}
+                            </div>
+                            <div class="partner-contact">
+                                <span class="phone-number">📞 ${partner.phone_number || 'Not provided'}</span>
+                                ${partner.phone_number ? `<button class="contact-btn" onclick="copyToClipboard('${partner.phone_number}', '${partner.name}')">Copy Phone</button>` : ''}
+                            </div>
                         </div>`
                     ).join('');
                     
@@ -1621,17 +1675,32 @@
                             `<strong>${step.student.name}</strong> (${step.student.roll_number})` : 
                             'Multiple Students';
                         
+                        const contactInfo = step.student && step.student.phone_number ? 
+                            `<div class="step-contact">
+                                <span class="phone-number">📞 ${step.student.phone_number}</span>
+                                <button class="contact-btn small" onclick="copyToClipboard('${step.student.phone_number}', '${step.student.name}')">Copy</button>
+                            </div>` : 
+                            '<div class="step-contact"><span class="phone-number">📞 Not provided</span></div>';
+                        
                         return `
                             <div class="swap-step">
                                 <div class="step-number">${index + 1}</div>
                                 <div class="step-details">
                                     <div class="step-sections">Section ${step.from} → Section ${step.to}</div>
                                     <div class="step-student">${studentInfo}</div>
+                                    ${contactInfo}
                                 </div>
                                 ${index < swap.path.length - 1 ? '<div class="step-arrow">↓</div>' : ''}
                             </div>
                         `;
                     }).join('');
+                    
+                    const firstStepStudent = swap.path[0]?.student;
+                    const initiateContact = firstStepStudent && firstStepStudent.phone_number ? 
+                        `<div class="initiate-swap">
+                            <strong>Start with:</strong> ${firstStepStudent.name} (${firstStepStudent.roll_number})
+                            <button class="contact-btn primary" onclick="copyToClipboard('${firstStepStudent.phone_number}', '${firstStepStudent.name}')">📞 Copy Contact</button>
+                        </div>` : '';
                     
                     swapDiv.innerHTML = `
                         <h4>🔀 Multi-Step Swap to Section ${swap.targetSection}</h4>
@@ -1642,6 +1711,7 @@
                         <div class="multi-swap-summary">
                             <strong>Result:</strong> You'll get Section ${swap.targetSection} through ${swap.path.length} swap steps
                         </div>
+                        ${initiateContact}
                         <p style="margin-top: 10px; font-size: 14px; color: #666;">
                             💡 <strong>Action Required:</strong> Contact the first student in the sequence to initiate this multi-step swap through official KIIT procedures.
                         </p>
