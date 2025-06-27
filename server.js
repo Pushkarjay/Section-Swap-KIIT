@@ -974,7 +974,7 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
 
 // Simplified multi-step swap finder with proper user inclusion
 function findSwapCycle(startSection, targetSection, students, maxDepth, currentUser = null) {
-    // Create a simple swap path that shows the current user's role
+    // This function should ONLY find swaps that lead to the specific targetSection
     
     // First, try direct swap
     const studentsInTarget = students.filter(s => s.current_section === targetSection);
@@ -1000,21 +1000,30 @@ function findSwapCycle(startSection, targetSection, students, maxDepth, currentU
         ];
     }
     
-    // For multi-step swaps, let's find a simple chain
-    // Try to find: User -> Student1 -> Student2 -> ... -> back to User's section
+    // For multi-step swaps, find a chain that specifically leads to targetSection
+    // We need: User (startSection) -> Intermediate -> targetSection -> startSection
     
-    for (const middleStudent of students) {
+    if (!currentUser) return null;
+    
+    const userDesiredSections = JSON.parse(currentUser.desired_sections || '[]');
+    
+    // Only proceed if the user actually wants the targetSection
+    if (!userDesiredSections.includes(targetSection)) {
+        return null;
+    }
+    
+    // Look for 3-step swap: User -> Intermediate -> Target -> User
+    for (const intermediateStudent of students) {
         // Skip if this student is in the target section or start section
-        if (middleStudent.current_section === targetSection || 
-            middleStudent.current_section === startSection) continue;
+        if (intermediateStudent.current_section === targetSection || 
+            intermediateStudent.current_section === startSection) continue;
             
-        // Check if current user wants to go to middle student's section
-        // and middle student wants to go to target section
-        if (currentUser && 
-            JSON.parse(currentUser.desired_sections || '[]').includes(middleStudent.current_section) &&
-            middleStudent.desired_sections_parsed.includes(targetSection)) {
+        // Check if user wants to go to intermediate student's section
+        // AND intermediate student wants to go to the specific TARGET section
+        if (userDesiredSections.includes(intermediateStudent.current_section) &&
+            intermediateStudent.desired_sections_parsed.includes(targetSection)) {
             
-            // Now find someone in target section who wants to go to start section
+            // Now find someone in target section who wants to go back to start section
             const finalStudents = students.filter(s => 
                 s.current_section === targetSection &&
                 s.desired_sections_parsed.includes(startSection)
@@ -1024,14 +1033,14 @@ function findSwapCycle(startSection, targetSection, students, maxDepth, currentU
                 return [
                     {
                         from: startSection,
-                        to: middleStudent.current_section,
+                        to: intermediateStudent.current_section,
                         student: currentUser,
                         isCurrentUser: true
                     },
                     {
-                        from: middleStudent.current_section,
+                        from: intermediateStudent.current_section,
                         to: targetSection,
-                        student: middleStudent,
+                        student: intermediateStudent,
                         isCurrentUser: false
                     },
                     {
@@ -1045,53 +1054,62 @@ function findSwapCycle(startSection, targetSection, students, maxDepth, currentU
         }
     }
     
-    // If no simple 3-step swap found, try finding any chain where user can eventually get to target
-    // This is a simplified approach - we'll show user's desired move first
-    if (currentUser) {
-        const userDesiredSections = JSON.parse(currentUser.desired_sections || '[]');
+    // Try 4-step swap: User -> A -> B -> Target -> User
+    for (const studentA of students) {
+        if (studentA.current_section === targetSection || 
+            studentA.current_section === startSection) continue;
+            
+        // User wants to go to A's section
+        if (!userDesiredSections.includes(studentA.current_section)) continue;
         
-        for (const userDesired of userDesiredSections) {
-            if (userDesired === startSection) continue;
-            
-            // Find students in user's desired section
-            const studentsInUserDesired = students.filter(s => s.current_section === userDesired);
-            
-            for (const intermediateStudent of studentsInUserDesired) {
-                // Check if this student wants to go somewhere that eventually leads back
-                for (const nextSection of intermediateStudent.desired_sections_parsed) {
-                    const studentsInNext = students.filter(s => 
-                        s.current_section === nextSection &&
-                        s.desired_sections_parsed.includes(startSection)
-                    );
-                    
-                    if (studentsInNext.length > 0) {
-                        return [
-                            {
-                                from: startSection,
-                                to: userDesired,
-                                student: currentUser,
-                                isCurrentUser: true
-                            },
-                            {
-                                from: userDesired,
-                                to: nextSection,
-                                student: intermediateStudent,
-                                isCurrentUser: false
-                            },
-                            {
-                                from: nextSection,
-                                to: startSection,
-                                student: studentsInNext[0],
-                                isCurrentUser: false
-                            }
-                        ];
-                    }
+        for (const studentB of students) {
+            if (studentB.current_section === targetSection || 
+                studentB.current_section === startSection ||
+                studentB.current_section === studentA.current_section) continue;
+                
+            // A wants to go to B's section, B wants to go to target
+            if (studentA.desired_sections_parsed.includes(studentB.current_section) &&
+                studentB.desired_sections_parsed.includes(targetSection)) {
+                
+                // Find someone in target who wants to go back to start
+                const finalStudents = students.filter(s => 
+                    s.current_section === targetSection &&
+                    s.desired_sections_parsed.includes(startSection)
+                );
+                
+                if (finalStudents.length > 0) {
+                    return [
+                        {
+                            from: startSection,
+                            to: studentA.current_section,
+                            student: currentUser,
+                            isCurrentUser: true
+                        },
+                        {
+                            from: studentA.current_section,
+                            to: studentB.current_section,
+                            student: studentA,
+                            isCurrentUser: false
+                        },
+                        {
+                            from: studentB.current_section,
+                            to: targetSection,
+                            student: studentB,
+                            isCurrentUser: false
+                        },
+                        {
+                            from: targetSection,
+                            to: startSection,
+                            student: finalStudents[0],
+                            isCurrentUser: false
+                        }
+                    ];
                 }
             }
         }
     }
     
-    return null; // No cycle found
+    return null; // No valid cycle found for this specific target section
 }
 
 // Enhanced function to check if any student has potential swaps (direct or multi-step)
