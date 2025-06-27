@@ -780,6 +780,57 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
             }
         });
         
+        // Get available direct swaps for this student
+        const availableSwaps = [];
+        
+        if (student[0].desired_sections) {
+            try {
+                const studentDesiredSections = JSON.parse(student[0].desired_sections);
+                
+                for (const targetSection of studentDesiredSections) {
+                    if (targetSection === student[0].current_section) continue;
+                    
+                    // Find students in target section who want current student's section
+                    const [potentialPartners] = await executeQuery(
+                        isPostgreSQL ? `
+                            SELECT id, roll_number, name, current_section, desired_sections 
+                            FROM students 
+                            WHERE current_section = $1 AND id != $2
+                        ` : `
+                            SELECT id, roll_number, name, current_section, desired_sections 
+                            FROM students 
+                            WHERE current_section = ? AND id != ?
+                        `,
+                        [targetSection, req.user.id]
+                    );
+                    
+                    const directPartners = potentialPartners.filter(partner => {
+                        if (!partner.desired_sections) return false;
+                        try {
+                            const partnerDesired = JSON.parse(partner.desired_sections);
+                            return partnerDesired.includes(student[0].current_section);
+                        } catch (e) {
+                            return false;
+                        }
+                    });
+                    
+                    if (directPartners.length > 0) {
+                        availableSwaps.push({
+                            targetSection: targetSection,
+                            partners: directPartners.map(p => ({
+                                id: p.id,
+                                roll_number: p.roll_number,
+                                name: p.name,
+                                current_section: p.current_section
+                            }))
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error('Error checking available swaps:', e);
+            }
+        }
+        
         const dashboardData = {
             student: {
                 ...student[0],
@@ -795,7 +846,8 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
             },
             pendingRequests: pendingRequests.length,
             totalSwaps: historyCount[0].count || 0,
-            allStudents: studentsWithParsedSections
+            allStudents: studentsWithParsedSections,
+            availableSwaps: availableSwaps
         };
         
         console.log('Dashboard data prepared successfully');
