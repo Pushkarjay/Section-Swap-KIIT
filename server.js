@@ -923,9 +923,9 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
             [excludeId]
         );
         
-        // Create graph
+        // Create graph - map sections to desired sections with student info
         const graph = {};
-        const studentMap = {};
+        const sectionStudents = {}; // Map section -> array of students in that section
         
         students.forEach(student => {
             if (!student.desired_sections) return;
@@ -934,18 +934,24 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
                 const desiredSections = JSON.parse(student.desired_sections);
                 if (!Array.isArray(desiredSections) || desiredSections.length === 0) return;
                 
-                if (!graph[student.current_section]) {
-                    graph[student.current_section] = [];
+                // Group students by current section
+                if (!sectionStudents[student.current_section]) {
+                    sectionStudents[student.current_section] = [];
                 }
+                sectionStudents[student.current_section].push(student);
                 
-                // Add all desired sections as possible moves
+                // For each desired section, create edges
                 desiredSections.forEach(desired => {
                     if (desired !== student.current_section) {
-                        graph[student.current_section].push(desired);
+                        if (!graph[student.current_section]) {
+                            graph[student.current_section] = [];
+                        }
+                        // Only add if not already present
+                        if (!graph[student.current_section].includes(desired)) {
+                            graph[student.current_section].push(desired);
+                        }
                     }
                 });
-                
-                studentMap[student.current_section] = student;
             } catch (e) {
                 console.error('Error parsing desired_sections for student:', student.id, e);
             }
@@ -963,14 +969,37 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
                 // Convert path to steps with student info
                 const steps = [];
                 for (let i = 0; i < path.length - 1; i++) {
-                    const student = studentMap[path[i]];
+                    const fromSection = path[i];
+                    const toSectionStep = path[i + 1];
+                    
+                    // Find a student in fromSection who wants toSectionStep
+                    let selectedStudent = null;
+                    if (sectionStudents[fromSection]) {
+                        selectedStudent = sectionStudents[fromSection].find(student => {
+                            try {
+                                const desiredSections = JSON.parse(student.desired_sections || '[]');
+                                return desiredSections.includes(toSectionStep);
+                            } catch (e) {
+                                return false;
+                            }
+                        });
+                    }
+                    
                     steps.push({
-                        from: path[i],
-                        to: path[i + 1],
-                        student: student || null
+                        from: fromSection,
+                        to: toSectionStep,
+                        student: selectedStudent || null
                     });
                 }
-                return steps;
+                
+                // Validate the path makes logical sense
+                if (steps.length > 0 && steps.every(step => step.student !== null)) {
+                    return steps;
+                } else {
+                    // If we can't find valid students for all steps, return null
+                    console.log('Invalid multi-step path found - missing students for some steps');
+                    return null;
+                }
             }
             
             if (graph[current]) {
