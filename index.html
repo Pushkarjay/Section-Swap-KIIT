@@ -1213,7 +1213,7 @@
             try {
                 const dashboardData = await apiCall('/dashboard');
                 
-                // Process students and check for potential matches
+                // Process students and use backend match information
                 allStudentsData = dashboardData.allStudents.map(student => {
                     // Handle desired sections array
                     const desiredSections = student.desired_sections || [];
@@ -1225,8 +1225,8 @@
                     } else if (desiredSections.includes(student.current_section)) {
                         status = 'Satisfied';
                     } else {
-                        // Check if student has potential matches
-                        const hasMatches = checkForPotentialMatches(student, dashboardData.allStudents);
+                        // Use backend match information (includes both direct and multi-step matches)
+                        const hasMatches = student.hasMatches || false;
                         status = hasMatches ? 'Matches found' : 'Looking for swap';
                     }
                     
@@ -1946,12 +1946,14 @@
         }
 
         // Function to check if a student has potential swap matches
+        // Fallback function for checking potential matches (only direct matches)
+        // This is now mainly used as a backup if backend match data is not available
         function checkForPotentialMatches(student, allStudents) {
             const desiredSections = student.desired_sections || [];
             
             if (desiredSections.length === 0) return false;
             
-            // Check for direct matches
+            // Check for direct matches only (backend handles multi-step)
             for (const targetSection of desiredSections) {
                 if (targetSection === student.current_section) continue;
                 
@@ -1968,8 +1970,6 @@
                 }
             }
             
-            // For now, we'll only check direct matches to keep it simple
-            // Multi-step matching would be more complex and resource-intensive
             return false;
         }
     </script>
