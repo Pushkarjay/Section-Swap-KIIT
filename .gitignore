@@ -76,3 +76,6 @@ tmp/
 *-reset*.sql
 find-password.js
 comprehensive-test.js
+mysql-reset-init.sql
+mysql8-reset.bat
+setup-mysql.ps1

@@ -50,12 +50,12 @@ CREATE TABLE IF NOT EXISTS swap_history (
 );
 
 -- Insert sample data for testing
-INSERT IGNORE INTO students (roll_number, name, phone_number, email, password_hash, current_section, desired_section) VALUES
-('21051001', 'John Doe', '9876543210', 'john@kiit.ac.in', '$2a$10$example.hash.here', '4', '32'),
-('21051002', 'Jane Smith', '9876543211', 'jane@kiit.ac.in', '$2a$10$example.hash.here', '5', '20'),
-('21051003', 'Bob Johnson', '9876543212', 'bob@kiit.ac.in', '$2a$10$example.hash.here', '6', '6'),
-('21051004', 'Alice Brown', '9876543213', 'alice@kiit.ac.in', '$2a$10$example.hash.here', '20', '4'),
-('21051005', 'Charlie Wilson', '9876543214', 'charlie@kiit.ac.in', '$2a$10$example.hash.here', '32', '5');
+INSERT IGNORE INTO students (roll_number, name, phone_number, email, password_hash, current_section, desired_sections) VALUES
+('21051001', 'John Doe', '9876543210', 'john@kiit.ac.in', '$2a$10$example.hash.here', '4', '["32"]'),
+('21051002', 'Jane Smith', '9876543211', 'jane@kiit.ac.in', '$2a$10$example.hash.here', '5', '["20"]'),
+('21051003', 'Bob Johnson', '9876543212', 'bob@kiit.ac.in', '$2a$10$example.hash.here', '6', '["6"]'),
+('21051004', 'Alice Brown', '9876543213', 'alice@kiit.ac.in', '$2a$10$example.hash.here', '20', '["4"]'),
+('21051005', 'Charlie Wilson', '9876543214', 'charlie@kiit.ac.in', '$2a$10$example.hash.here', '32', '["5"]');
 
 -- Create a view for easy querying
 CREATE OR REPLACE VIEW student_swap_view AS
@@ -64,12 +64,12 @@ SELECT
     s.roll_number,
     s.name,
     s.current_section,
-    s.desired_section,
+    s.desired_sections,
     s.phone_number,
     s.email,
     CASE 
-        WHEN s.current_section = s.desired_section THEN 'Satisfied'
-        WHEN s.desired_section IS NULL THEN 'No preference'
+        WHEN JSON_CONTAINS(s.desired_sections, JSON_QUOTE(s.current_section)) THEN 'Satisfied'
+        WHEN s.desired_sections IS NULL OR JSON_LENGTH(s.desired_sections) = 0 THEN 'No preference'
         ELSE 'Looking for swap'
     END as status
 FROM students s
