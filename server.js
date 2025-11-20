@@ -426,6 +426,46 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+// Reset password
+app.post('/api/reset-password', async (req, res) => {
+    try {
+        const { rollNumber, phoneNumber, newPassword } = req.body;
+        
+        if (!rollNumber || !phoneNumber || !newPassword) {
+            return res.status(400).json({ error: 'All fields are required' });
+        }
+
+        // Verify roll number and phone number match
+        const [rows] = await executeQuery(
+            isPostgreSQL ? 
+                'SELECT * FROM students WHERE roll_number = $1 AND phone_number = $2' : 
+                'SELECT * FROM students WHERE roll_number = ? AND phone_number = ?',
+            [rollNumber, phoneNumber]
+        );
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'No account found with this roll number and phone number' });
+        }
+
+        // Hash new password
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+        // Update password
+        await executeQuery(
+            isPostgreSQL ?
+                'UPDATE students SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE roll_number = $2' :
+                'UPDATE students SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE roll_number = ?',
+            [passwordHash, rollNumber]
+        );
+
+        res.json({ message: 'Password reset successful' });
+    } catch (error) {
+        console.error('Password reset error:', error);
+        res.status(500).json({ error: 'Failed to reset password' });
+    }
+});
+
 // Get student profile
 app.get('/api/profile', authenticateToken, async (req, res) => {
     try {

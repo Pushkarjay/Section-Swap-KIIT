@@ -719,6 +719,34 @@
                 <button type="submit">Login</button>
                 <div class="form-group" style="margin-top: 15px;">
                     <p>Don't have an account? <a href="#" id="show-register">Register here</a></p>
+                    <p><a href="#" id="show-forgot-password">Forgot Password?</a></p>
+                </div>
+            </form>
+        </div>
+
+        <!-- Forgot Password Card -->
+        <div class="card hidden" id="forgot-password-card">
+            <h2 class="card-title">Reset Password</h2>
+            <form id="forgot-password-form">
+                <div class="form-group">
+                    <label for="forgot-roll-number">Roll Number</label>
+                    <input type="text" id="forgot-roll-number" required placeholder="Enter your roll number">
+                </div>
+                <div class="form-group">
+                    <label for="forgot-phone">Phone Number</label>
+                    <input type="tel" id="forgot-phone" required placeholder="Enter your registered phone number">
+                </div>
+                <div class="form-group">
+                    <label for="new-password">New Password</label>
+                    <input type="password" id="new-password" required placeholder="Enter new password">
+                </div>
+                <div class="form-group">
+                    <label for="confirm-password">Confirm New Password</label>
+                    <input type="password" id="confirm-password" required placeholder="Confirm new password">
+                </div>
+                <button type="submit">Reset Password</button>
+                <div class="form-group" style="margin-top: 15px;">
+                    <p><a href="#" id="back-to-login">Back to Login</a></p>
                 </div>
             </form>
         </div>
@@ -1091,9 +1119,20 @@
                 showLogin();
             });
 
+            document.getElementById('show-forgot-password').addEventListener('click', (e) => {
+                e.preventDefault();
+                showForgotPassword();
+            });
+
+            document.getElementById('back-to-login').addEventListener('click', (e) => {
+                e.preventDefault();
+                showLogin();
+            });
+
             // Forms
             document.getElementById('login-form').addEventListener('submit', handleLogin);
             document.getElementById('register-form').addEventListener('submit', handleRegister);
+            document.getElementById('forgot-password-form').addEventListener('submit', handleForgotPassword);
             document.getElementById('profile-form').addEventListener('submit', handleProfileUpdate);
 
             // Dashboard buttons
@@ -1713,6 +1752,44 @@
         function showRegister() {
             hideAllCards();
             registerCard.classList.remove('hidden');
+        }
+
+        function showForgotPassword() {
+            hideAllCards();
+            document.getElementById('forgot-password-card').classList.remove('hidden');
+        }
+
+        async function handleForgotPassword(e) {
+            e.preventDefault();
+            
+            const rollNumber = document.getElementById('forgot-roll-number').value.trim();
+            const phoneNumber = document.getElementById('forgot-phone').value.trim();
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+
+            if (newPassword !== confirmPassword) {
+                alert('Passwords do not match!');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                alert('Password must be at least 6 characters long');
+                return;
+            }
+
+            try {
+                const result = await apiCall('/reset-password', 'POST', { 
+                    rollNumber, 
+                    phoneNumber, 
+                    newPassword 
+                });
+                
+                alert('Password reset successful! Please login with your new password.');
+                document.getElementById('forgot-password-form').reset();
+                showLogin();
+            } catch (error) {
+                alert('Password reset failed: ' + error.message);
+            }
         }
 
         function populateAllSectionSelects() {
