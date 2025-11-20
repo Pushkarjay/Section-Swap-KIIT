@@ -164,6 +164,17 @@ async function initializeDatabase() {
                 )
             `);
             
+            await executeQuery(`
+                CREATE TABLE IF NOT EXISTS whatsapp_groups (
+                    id SERIAL PRIMARY KEY,
+                    section VARCHAR(10) NOT NULL,
+                    group_link TEXT NOT NULL,
+                    group_name VARCHAR(100),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(section, group_link)
+                )
+            `);
+            
             console.log('✅ PostgreSQL tables created successfully');
         } else {
             // MySQL table creation
@@ -211,6 +222,17 @@ async function initializeDatabase() {
                         swap_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (student_id) REFERENCES students(id),
                         FOREIGN KEY (swap_partner_id) REFERENCES students(id)
+                    )
+                `);
+                
+                await connection.execute(`
+                    CREATE TABLE IF NOT EXISTS whatsapp_groups (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        section VARCHAR(10) NOT NULL,
+                        group_link TEXT NOT NULL,
+                        group_name VARCHAR(100),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY unique_section_link (section, group_link(255))
                     )
                 `);
                 
@@ -1600,6 +1622,72 @@ app.get('/api/debug-swaps', async (req, res) => {
     } catch (error) {
         console.error('Debug swaps error:', error);
         res.status(500).json({ error: 'Debug failed', details: error.message });
+    }
+});
+
+// WhatsApp Groups endpoints
+
+// Get all WhatsApp groups
+app.get('/api/whatsapp-groups', async (req, res) => {
+    try {
+        const [groups] = await executeQuery(
+            'SELECT * FROM whatsapp_groups ORDER BY section, created_at'
+        );
+        res.json(groups);
+    } catch (error) {
+        console.error('Get groups error:', error);
+        res.status(500).json({ error: 'Failed to fetch groups' });
+    }
+});
+
+// Add WhatsApp group
+app.post('/api/whatsapp-groups', async (req, res) => {
+    try {
+        const { section, groupLink, groupName } = req.body;
+        
+        if (!section || !groupLink) {
+            return res.status(400).json({ error: 'Section and group link are required' });
+        }
+
+        // Check if this exact link already exists for this section
+        const [existing] = await executeQuery(
+            isPostgreSQL ? 
+                'SELECT * FROM whatsapp_groups WHERE section = $1 AND group_link = $2' :
+                'SELECT * FROM whatsapp_groups WHERE section = ? AND group_link = ?',
+            [section, groupLink]
+        );
+
+        if (existing.length > 0) {
+            return res.json({ 
+                message: 'This group link already exists for this section',
+                duplicate: true 
+            });
+        }
+
+        // Insert new group
+        if (isPostgreSQL) {
+            await executeQuery(
+                'INSERT INTO whatsapp_groups (section, group_link, group_name) VALUES ($1, $2, $3)',
+                [section, groupLink, groupName]
+            );
+        } else {
+            await executeQuery(
+                'INSERT INTO whatsapp_groups (section, group_link, group_name) VALUES (?, ?, ?)',
+                [section, groupLink, groupName]
+            );
+        }
+
+        res.status(201).json({ message: 'Group link added successfully' });
+    } catch (error) {
+        console.error('Add group error:', error);
+        if (error.code === 'ER_DUP_ENTRY' || error.code === '23505') {
+            res.json({ 
+                message: 'This group link already exists for this section',
+                duplicate: true 
+            });
+        } else {
+            res.status(500).json({ error: 'Failed to add group link' });
+        }
     }
 });
 
