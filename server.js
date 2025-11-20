@@ -175,6 +175,17 @@ async function initializeDatabase() {
                 )
             `);
             
+            await executeQuery(`
+                CREATE TABLE IF NOT EXISTS feedback (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(100) DEFAULT 'Anonymous',
+                    category VARCHAR(50) NOT NULL,
+                    message TEXT NOT NULL,
+                    rating INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            
             console.log('✅ PostgreSQL tables created successfully');
         } else {
             // MySQL table creation
@@ -233,6 +244,17 @@ async function initializeDatabase() {
                         group_name VARCHAR(100),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE KEY unique_section_link (section, group_link(255))
+                    )
+                `);
+                
+                await connection.execute(`
+                    CREATE TABLE IF NOT EXISTS feedback (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(100) DEFAULT 'Anonymous',
+                        category VARCHAR(50) NOT NULL,
+                        message TEXT NOT NULL,
+                        rating INT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 `);
                 
@@ -1688,6 +1710,51 @@ app.post('/api/whatsapp-groups', async (req, res) => {
         } else {
             res.status(500).json({ error: 'Failed to add group link' });
         }
+    }
+});
+
+// Feedback endpoints
+
+// Get all feedback
+app.get('/api/feedback', async (req, res) => {
+    try {
+        const [feedbackList] = await executeQuery(
+            'SELECT * FROM feedback ORDER BY created_at DESC'
+        );
+        res.json(feedbackList);
+    } catch (error) {
+        console.error('Get feedback error:', error);
+        res.status(500).json({ error: 'Failed to fetch feedback' });
+    }
+});
+
+// Submit feedback
+app.post('/api/feedback', async (req, res) => {
+    try {
+        const { name, category, message, rating } = req.body;
+        
+        if (!category || !message) {
+            return res.status(400).json({ error: 'Category and message are required' });
+        }
+
+        const feedbackName = name && name.trim() !== '' ? name : 'Anonymous';
+
+        if (isPostgreSQL) {
+            await executeQuery(
+                'INSERT INTO feedback (name, category, message, rating) VALUES ($1, $2, $3, $4)',
+                [feedbackName, category, message, rating]
+            );
+        } else {
+            await executeQuery(
+                'INSERT INTO feedback (name, category, message, rating) VALUES (?, ?, ?, ?)',
+                [feedbackName, category, message, rating]
+            );
+        }
+
+        res.status(201).json({ message: 'Feedback submitted successfully' });
+    } catch (error) {
+        console.error('Submit feedback error:', error);
+        res.status(500).json({ error: 'Failed to submit feedback' });
     }
 });
 
