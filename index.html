@@ -620,6 +620,52 @@
             transform: translateY(0);
         }
 
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h3 {
+            margin: 0 0 10px 0;
+            color: var(--dark-color);
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
         /* Responsive adjustments */
         @media (max-width: 768px) {
             .container {
@@ -784,7 +830,13 @@
                 </div>
                 <div class="form-group">
                     <label for="profile-current-section">Current Section</label>
-                    <input type="text" id="profile-current-section" readonly>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="profile-current-section" readonly style="flex: 1;">
+                        <button type="button" id="change-section-btn" class="btn-secondary" style="white-space: nowrap;">Change Section</button>
+                    </div>
+                    <p style="font-size: 12px; color: #856404; margin-top: 5px; background: #fff3cd; padding: 8px; border-radius: 4px;">
+                        ⚠️ Only update after completing official KIIT section swap procedures
+                    </p>
                 </div>
                 <div class="form-group">
                     <label for="profile-desired-sections">Desired Sections (Priority Order)</label>
@@ -950,6 +1002,30 @@
         </div>
     </div>
     
+    <!-- Change Section Modal -->
+    <div id="change-section-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Change Current Section</h3>
+                <p style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 5px; font-size: 14px;">
+                    ⚠️ <strong>Important:</strong> Only update this after you have completed the official KIIT section swap process through your academic office.
+                </p>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="new-section-select">Select New Section</label>
+                    <select id="new-section-select" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">Select section</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="cancel-section-change" class="btn-secondary">Cancel</button>
+                <button type="button" id="confirm-section-change" class="btn-success">Confirm Change</button>
+            </div>
+        </div>
+    </div>
+    
     <footer>
         <div class="container">
             <p>© 2025 Student Section Swap System. All rights reserved.</p>
@@ -1026,6 +1102,11 @@
             // Back buttons
             document.getElementById('back-to-dashboard').addEventListener('click', showDashboard);
             document.getElementById('back-to-dashboard-from-sheet').addEventListener('click', showDashboard);
+
+            // Change section modal
+            document.getElementById('change-section-btn').addEventListener('click', showChangeSectionModal);
+            document.getElementById('cancel-section-change').addEventListener('click', hideChangeSectionModal);
+            document.getElementById('confirm-section-change').addEventListener('click', handleSectionChange);
 
             // Existing swap functionality
             document.getElementById('find-swap-btn').addEventListener('click', findSwapOptions);
@@ -2024,6 +2105,59 @@
             }
             
             return false;
+        }
+
+        // Change section modal functions
+        function showChangeSectionModal() {
+            const modal = document.getElementById('change-section-modal');
+            const select = document.getElementById('new-section-select');
+            
+            // Populate sections
+            select.innerHTML = '<option value="">Select section</option>';
+            allSections.forEach(section => {
+                if (section !== currentUser.current_section) {
+                    const option = document.createElement('option');
+                    option.value = section;
+                    option.textContent = `Section ${section}`;
+                    select.appendChild(option);
+                }
+            });
+            
+            modal.classList.add('show');
+        }
+
+        function hideChangeSectionModal() {
+            const modal = document.getElementById('change-section-modal');
+            modal.classList.remove('show');
+            document.getElementById('new-section-select').value = '';
+        }
+
+        async function handleSectionChange() {
+            const newSection = document.getElementById('new-section-select').value;
+            
+            if (!newSection) {
+                alert('Please select a new section');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to change from Section ${currentUser.current_section} to Section ${newSection}?\n\nOnly confirm if you have completed the official KIIT section swap process.`)) {
+                return;
+            }
+            
+            try {
+                const result = await apiCall('/update-section', 'PUT', { newSection });
+                
+                alert(`Section updated successfully!\nOld Section: ${result.oldSection}\nNew Section: ${result.newSection}`);
+                
+                // Update current user
+                currentUser.current_section = result.newSection;
+                
+                // Hide modal and refresh dashboard
+                hideChangeSectionModal();
+                showDashboard();
+            } catch (error) {
+                alert('Failed to update section: ' + error.message);
+            }
         }
     </script>
 </body>

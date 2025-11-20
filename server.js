@@ -429,6 +429,54 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
     }
 });
 
+// Update current section (after official swap completion)
+app.put('/api/update-section', authenticateToken, async (req, res) => {
+    try {
+        const { newSection } = req.body;
+        
+        if (!newSection) {
+            return res.status(400).json({ error: 'New section is required' });
+        }
+        
+        // Get current student info
+        const [currentStudent] = await executeQuery(
+            isPostgreSQL ? 'SELECT * FROM students WHERE id = $1' : 'SELECT * FROM students WHERE id = ?',
+            [req.user.id]
+        );
+        
+        if (currentStudent.length === 0) {
+            return res.status(404).json({ error: 'Student not found' });
+        }
+        
+        const oldSection = currentStudent[0].current_section;
+        
+        // Update current section
+        await executeQuery(
+            isPostgreSQL ?
+                'UPDATE students SET current_section = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2' :
+                'UPDATE students SET current_section = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+            [newSection, req.user.id]
+        );
+        
+        // Record in swap history
+        await executeQuery(
+            isPostgreSQL ?
+                'INSERT INTO swap_history (student_id, from_section, to_section) VALUES ($1, $2, $3)' :
+                'INSERT INTO swap_history (student_id, from_section, to_section) VALUES (?, ?, ?)',
+            [req.user.id, oldSection, newSection]
+        );
+        
+        res.json({ 
+            message: 'Section updated successfully',
+            oldSection: oldSection,
+            newSection: newSection
+        });
+    } catch (error) {
+        console.error('Section update error:', error);
+        res.status(500).json({ error: 'Failed to update section' });
+    }
+});
+
 // Find swap options
 app.post('/api/find-swap', authenticateToken, async (req, res) => {
     try {
