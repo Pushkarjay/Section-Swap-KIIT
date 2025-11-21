@@ -328,13 +328,38 @@
             <div id="alert-container"></div>
             <form id="add-group-form">
                 <div class="form-group">
-                    <label for="section">Section</label>
+                    <label for="section">Section <span style="color: red;">*</span></label>
                     <select id="section" required>
                         <option value="">Select section</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="group-link">WhatsApp Group Link</label>
+                    <label for="add-batch">Batch <span style="color: red;">*</span></label>
+                    <select id="add-batch" required>
+                        <option value="">Select batch</option>
+                        <option value="2021-25">2021-25 Batch</option>
+                        <option value="2022-26">2022-26 Batch</option>
+                        <option value="2023-27">2023-27 Batch</option>
+                        <option value="2024-28">2024-28 Batch</option>
+                        <option value="2025-29">2025-29 Batch</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="add-semester">Semester <span style="color: red;">*</span></label>
+                    <select id="add-semester" required>
+                        <option value="">Select semester</option>
+                        <option value="1st sem">1st Semester</option>
+                        <option value="2nd sem">2nd Semester</option>
+                        <option value="3rd sem">3rd Semester</option>
+                        <option value="4th sem">4th Semester</option>
+                        <option value="5th sem">5th Semester</option>
+                        <option value="6th sem">6th Semester</option>
+                        <option value="7th sem">7th Semester</option>
+                        <option value="8th sem">8th Semester</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="group-link">WhatsApp Group Link <span style="color: red;">*</span></label>
                     <input type="url" id="group-link" required placeholder="https://chat.whatsapp.com/...">
                     <p style="font-size: 12px; color: #666; margin-top: 5px;">
                         💡 Get the group link from WhatsApp: Open group → Group info → Invite via link
