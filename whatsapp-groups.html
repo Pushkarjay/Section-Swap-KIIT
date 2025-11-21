@@ -379,13 +379,48 @@
         // All sections
         const allSections = Array.from({length: 50}, (_, i) => (i + 1).toString());
 
+        // User data
+        let userBatch = null;
+
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            populateSectionSelect();
-            loadGroups();
-            
+            checkAuthAndLoadData();
             document.getElementById('add-group-form').addEventListener('submit', handleAddGroup);
         });
+
+        function getToken() {
+            return localStorage.getItem('token');
+        }
+
+        async function checkAuthAndLoadData() {
+            const token = getToken();
+            if (!token) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/profile`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch profile');
+                }
+
+                const profile = await response.json();
+                userBatch = profile.batch;
+
+                populateSectionSelect();
+                loadGroups();
+            } catch (error) {
+                console.error('Auth error:', error);
+                localStorage.removeItem('token');
+                window.location.href = 'index.html';
+            }
+        }
 
         function populateSectionSelect() {
             const select = document.getElementById('section');
@@ -414,12 +449,14 @@
                 const response = await fetch(`${API_BASE}/whatsapp-groups`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}`
                     },
                     body: JSON.stringify({
                         section: section,
                         groupLink: groupLink,
-                        groupName: groupName || null
+                        groupName: groupName || null,
+                        batch: userBatch
                     })
                 });
 
@@ -444,11 +481,16 @@
 
         async function loadGroups() {
             try {
-                const response = await fetch(`${API_BASE}/whatsapp-groups`);
+                const response = await fetch(`${API_BASE}/whatsapp-groups?batch=${encodeURIComponent(userBatch)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`
+                    }
+                });
                 const groups = await response.json();
 
                 displayGroups(groups);
             } catch (error) {
+                console.error('Error loading groups:', error);
                 document.getElementById('groups-container').innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">❌</div>
