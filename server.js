@@ -252,10 +252,11 @@ async function initializeDatabase() {
                     id SERIAL PRIMARY KEY,
                     section VARCHAR(10) NOT NULL,
                     batch VARCHAR(10),
+                    semester VARCHAR(10),
                     group_link TEXT NOT NULL,
                     group_name VARCHAR(100),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(section, batch, group_link)
+                    UNIQUE(section, batch, semester, group_link)
                 )
             `);
             
@@ -372,10 +373,11 @@ async function initializeDatabase() {
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         section VARCHAR(10) NOT NULL,
                         batch VARCHAR(10),
+                        semester VARCHAR(10),
                         group_link TEXT NOT NULL,
                         group_name VARCHAR(100),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE KEY unique_section_batch_link (section, batch, group_link(255))
+                        UNIQUE KEY unique_section_batch_semester_link (section, batch, semester, group_link(255))
                     )
                 `);
                 
@@ -1914,20 +1916,32 @@ app.get('/api/debug-swaps', async (req, res) => {
 
 // WhatsApp Groups endpoints
 
-// Get all WhatsApp groups (optionally filtered by batch)
+// Get all WhatsApp groups (optionally filtered by batch and/or semester)
 app.get('/api/whatsapp-groups', async (req, res) => {
     try {
-        const { batch } = req.query;
+        const { batch, semester } = req.query;
         
-        const [groups] = await executeQuery(
-            batch ?
-                (isPostgreSQL ?
-                    'SELECT * FROM whatsapp_groups WHERE batch = $1 OR batch IS NULL ORDER BY batch, section, created_at' :
-                    'SELECT * FROM whatsapp_groups WHERE batch = ? OR batch IS NULL ORDER BY batch, section, created_at'
-                ) :
-                'SELECT * FROM whatsapp_groups ORDER BY batch, section, created_at',
-            batch ? [batch] : []
-        );
+        let query = 'SELECT * FROM whatsapp_groups';
+        let conditions = [];
+        let params = [];
+        
+        if (batch) {
+            conditions.push(isPostgreSQL ? `batch = $${params.length + 1}` : 'batch = ?');
+            params.push(batch);
+        }
+        
+        if (semester) {
+            conditions.push(isPostgreSQL ? `semester = $${params.length + 1}` : 'semester = ?');
+            params.push(semester);
+        }
+        
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
+        }
+        
+        query += ' ORDER BY batch, semester, section, created_at';
+        
+        const [groups] = await executeQuery(query, params);
         res.json(groups);
     } catch (error) {
         console.error('Get groups error:', error);
@@ -1938,23 +1952,23 @@ app.get('/api/whatsapp-groups', async (req, res) => {
 // Add WhatsApp group
 app.post('/api/whatsapp-groups', async (req, res) => {
     try {
-        const { section, batch, groupLink, groupName } = req.body;
+        const { section, batch, semester, groupLink, groupName } = req.body;
         
         if (!section || !groupLink) {
             return res.status(400).json({ error: 'Section and group link are required' });
         }
 
-        // Check if this exact link already exists for this section and batch
+        // Check if this exact link already exists for this section, batch, and semester
         const [existing] = await executeQuery(
             isPostgreSQL ? 
-                'SELECT * FROM whatsapp_groups WHERE section = $1 AND batch = $2 AND group_link = $3' :
-                'SELECT * FROM whatsapp_groups WHERE section = ? AND batch = ? AND group_link = ?',
-            [section, batch, groupLink]
+                'SELECT * FROM whatsapp_groups WHERE section = $1 AND batch = $2 AND semester = $3 AND group_link = $4' :
+                'SELECT * FROM whatsapp_groups WHERE section = ? AND batch = ? AND semester = ? AND group_link = ?',
+            [section, batch, semester, groupLink]
         );
 
         if (existing.length > 0) {
             return res.json({ 
-                message: 'This group link already exists for this section and batch',
+                message: 'This group link already exists for this section, batch, and semester',
                 duplicate: true 
             });
         }
@@ -1962,13 +1976,13 @@ app.post('/api/whatsapp-groups', async (req, res) => {
         // Insert new group
         if (isPostgreSQL) {
             await executeQuery(
-                'INSERT INTO whatsapp_groups (section, batch, group_link, group_name) VALUES ($1, $2, $3, $4)',
-                [section, batch, groupLink, groupName]
+                'INSERT INTO whatsapp_groups (section, batch, semester, group_link, group_name) VALUES ($1, $2, $3, $4, $5)',
+                [section, batch, semester, groupLink, groupName]
             );
         } else {
             await executeQuery(
-                'INSERT INTO whatsapp_groups (section, batch, group_link, group_name) VALUES (?, ?, ?, ?)',
-                [section, batch, groupLink, groupName]
+                'INSERT INTO whatsapp_groups (section, batch, semester, group_link, group_name) VALUES (?, ?, ?, ?, ?)',
+                [section, batch, semester, groupLink, groupName]
             );
         }
 
@@ -1977,7 +1991,7 @@ app.post('/api/whatsapp-groups', async (req, res) => {
         console.error('Add group error:', error);
         if (error.code === 'ER_DUP_ENTRY' || error.code === '23505') {
             res.json({ 
-                message: 'This group link already exists for this section and batch',
+                message: 'This group link already exists for this section, batch, and semester',
                 duplicate: true 
             });
         } else {

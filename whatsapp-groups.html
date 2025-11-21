@@ -351,16 +351,32 @@
         <!-- Groups Display -->
         <div class="card">
             <h2 class="card-title">Available WhatsApp Groups by Section</h2>
-            <div class="form-group" style="margin-bottom: 20px;">
-                <label for="batch-filter">Filter by Batch</label>
-                <select id="batch-filter" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
-                    <option value="">All Batches</option>
-                    <option value="2021-25">2021-25 Batch</option>
-                    <option value="2022-26">2022-26 Batch</option>
-                    <option value="2023-27">2023-27 Batch</option>
-                    <option value="2024-28">2024-28 Batch</option>
-                    <option value="2025-29">2025-29 Batch</option>
-                </select>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="batch-filter">Filter by Batch</label>
+                    <select id="batch-filter" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
+                        <option value="">All Batches</option>
+                        <option value="2021-25">2021-25 Batch</option>
+                        <option value="2022-26">2022-26 Batch</option>
+                        <option value="2023-27">2023-27 Batch</option>
+                        <option value="2024-28">2024-28 Batch</option>
+                        <option value="2025-29">2025-29 Batch</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="semester-filter">Filter by Semester</label>
+                    <select id="semester-filter" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
+                        <option value="">All Semesters</option>
+                        <option value="1st sem">1st Semester</option>
+                        <option value="2nd sem">2nd Semester</option>
+                        <option value="3rd sem">3rd Semester</option>
+                        <option value="4th sem">4th Semester</option>
+                        <option value="5th sem">5th Semester</option>
+                        <option value="6th sem">6th Semester</option>
+                        <option value="7th sem">7th Semester</option>
+                        <option value="8th sem">8th Semester</option>
+                    </select>
+                </div>
             </div>
             <div id="groups-container">
                 <div class="empty-state">
@@ -397,6 +413,7 @@
             
             document.getElementById('add-group-form').addEventListener('submit', handleAddGroup);
             document.getElementById('batch-filter').addEventListener('change', loadGroups);
+            document.getElementById('semester-filter').addEventListener('change', loadGroups);
         });
 
         function populateSectionSelect() {
@@ -413,9 +430,10 @@
             e.preventDefault();
             
             const section = document.getElementById('section').value;
+            const batch = document.getElementById('add-batch').value;
+            const semester = document.getElementById('add-semester').value;
             const groupLink = document.getElementById('group-link').value.trim();
             const groupName = document.getElementById('group-name').value.trim();
-            const selectedBatch = document.getElementById('batch-filter').value || null;
 
             // Validate WhatsApp link
             if (!groupLink.includes('chat.whatsapp.com')) {
@@ -431,9 +449,10 @@
                     },
                     body: JSON.stringify({
                         section: section,
+                        batch: batch,
+                        semester: semester,
                         groupLink: groupLink,
-                        groupName: groupName || null,
-                        batch: selectedBatch
+                        groupName: groupName || null
                     })
                 });
 
@@ -459,9 +478,20 @@
         async function loadGroups() {
             try {
                 const selectedBatch = document.getElementById('batch-filter').value;
-                const url = selectedBatch 
-                    ? `${API_BASE}/whatsapp-groups?batch=${encodeURIComponent(selectedBatch)}`
-                    : `${API_BASE}/whatsapp-groups`;
+                const selectedSemester = document.getElementById('semester-filter').value;
+                
+                let url = `${API_BASE}/whatsapp-groups?`;
+                const params = [];
+                
+                if (selectedBatch) {
+                    params.push(`batch=${encodeURIComponent(selectedBatch)}`);
+                }
+                
+                if (selectedSemester) {
+                    params.push(`semester=${encodeURIComponent(selectedSemester)}`);
+                }
+                
+                url += params.join('&');
                 
                 console.log('Loading groups from:', url);
                 const response = await fetch(url);
@@ -522,9 +552,11 @@
 
                 groupedBySection[section].forEach((group, index) => {
                     const displayName = group.group_name || `Group ${index + 1}`;
+                    const batchInfo = group.batch ? ` (${group.batch})` : '';
+                    const semesterInfo = group.semester ? ` - ${group.semester}` : '';
                     html += `
                         <li>
-                            <span style="font-size: 0.9rem;">${displayName}</span>
+                            <span style="font-size: 0.9rem;">${displayName}${batchInfo}${semesterInfo}</span>
                             <a href="${group.group_link}" target="_blank" class="join-btn">
                                 💬 Join
                             </a>
