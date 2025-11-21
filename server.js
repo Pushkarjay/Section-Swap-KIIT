@@ -1967,7 +1967,30 @@ app.get('/api/whatsapp-groups', async (req, res) => {
         res.json(groups);
     } catch (error) {
         console.error('Get groups error:', error);
-        res.status(500).json({ error: 'Failed to fetch groups' });
+        
+        // If the error is about semester column not existing, try without it
+        if (error.message && (error.message.includes('semester') || error.message.includes('column'))) {
+            console.log('Attempting query without semester column...');
+            try {
+                const { batch } = req.query;
+                let fallbackQuery = 'SELECT * FROM whatsapp_groups';
+                let fallbackParams = [];
+                
+                if (batch) {
+                    fallbackQuery += isPostgreSQL ? ' WHERE batch = $1' : ' WHERE batch = ?';
+                    fallbackParams.push(batch);
+                }
+                
+                fallbackQuery += ' ORDER BY batch, section, created_at';
+                
+                const [groups] = await executeQuery(fallbackQuery, fallbackParams);
+                return res.json(groups);
+            } catch (fallbackError) {
+                console.error('Fallback query also failed:', fallbackError);
+            }
+        }
+        
+        res.status(500).json({ error: 'Failed to fetch groups', details: error.message });
     }
 });
 
@@ -1980,44 +2003,69 @@ app.post('/api/whatsapp-groups', async (req, res) => {
             return res.status(400).json({ error: 'Section and group link are required' });
         }
 
-        // Check if this exact link already exists for this section, batch, and semester
-        const [existing] = await executeQuery(
-            isPostgreSQL ? 
-                'SELECT * FROM whatsapp_groups WHERE section = $1 AND batch = $2 AND semester = $3 AND group_link = $4' :
-                'SELECT * FROM whatsapp_groups WHERE section = ? AND batch = ? AND semester = ? AND group_link = ?',
-            [section, batch, semester, groupLink]
-        );
+        // Try to check if group exists (with semester)
+        try {
+            const [existing] = await executeQuery(
+                isPostgreSQL ? 
+                    'SELECT * FROM whatsapp_groups WHERE section = $1 AND batch = $2 AND semester = $3 AND group_link = $4' :
+                    'SELECT * FROM whatsapp_groups WHERE section = ? AND batch = ? AND semester = ? AND group_link = ?',
+                [section, batch, semester, groupLink]
+            );
 
-        if (existing.length > 0) {
-            return res.json({ 
-                message: 'This group link already exists for this section, batch, and semester',
-                duplicate: true 
-            });
+            if (existing.length > 0) {
+                return res.json({ 
+                    message: 'This group link already exists for this section, batch, and semester',
+                    duplicate: true 
+                });
+            }
+        } catch (checkError) {
+            console.log('Could not check for existing group (possibly column missing):', checkError.message);
         }
 
-        // Insert new group
-        if (isPostgreSQL) {
-            await executeQuery(
-                'INSERT INTO whatsapp_groups (section, batch, semester, group_link, group_name) VALUES ($1, $2, $3, $4, $5)',
-                [section, batch, semester, groupLink, groupName]
-            );
-        } else {
-            await executeQuery(
-                'INSERT INTO whatsapp_groups (section, batch, semester, group_link, group_name) VALUES (?, ?, ?, ?, ?)',
-                [section, batch, semester, groupLink, groupName]
-            );
+        // Try to insert with semester
+        try {
+            if (isPostgreSQL) {
+                await executeQuery(
+                    'INSERT INTO whatsapp_groups (section, batch, semester, group_link, group_name) VALUES ($1, $2, $3, $4, $5)',
+                    [section, batch, semester, groupLink, groupName]
+                );
+            } else {
+                await executeQuery(
+                    'INSERT INTO whatsapp_groups (section, batch, semester, group_link, group_name) VALUES (?, ?, ?, ?, ?)',
+                    [section, batch, semester, groupLink, groupName]
+                );
+            }
+            
+            res.status(201).json({ message: 'Group link added successfully' });
+        } catch (insertError) {
+            // If semester column doesn't exist, try without it
+            if (insertError.message && insertError.message.includes('semester')) {
+                console.log('Attempting insert without semester column...');
+                if (isPostgreSQL) {
+                    await executeQuery(
+                        'INSERT INTO whatsapp_groups (section, batch, group_link, group_name) VALUES ($1, $2, $3, $4)',
+                        [section, batch, groupLink, groupName]
+                    );
+                } else {
+                    await executeQuery(
+                        'INSERT INTO whatsapp_groups (section, batch, group_link, group_name) VALUES (?, ?, ?, ?)',
+                        [section, batch, groupLink, groupName]
+                    );
+                }
+                res.status(201).json({ message: 'Group link added successfully (semester will be added after database migration)' });
+            } else {
+                throw insertError;
+            }
         }
-
-        res.status(201).json({ message: 'Group link added successfully' });
     } catch (error) {
         console.error('Add group error:', error);
         if (error.code === 'ER_DUP_ENTRY' || error.code === '23505') {
             res.json({ 
-                message: 'This group link already exists for this section, batch, and semester',
+                message: 'This group link already exists for this section and batch',
                 duplicate: true 
             });
         } else {
-            res.status(500).json({ error: 'Failed to add group link' });
+            res.status(500).json({ error: 'Failed to add group link', details: error.message });
         }
     }
 });
