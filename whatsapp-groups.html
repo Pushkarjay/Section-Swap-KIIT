@@ -394,12 +394,16 @@
 
         async function checkAuthAndLoadData() {
             const token = getToken();
+            console.log('Token exists:', !!token);
+            
             if (!token) {
+                console.log('No token, redirecting to login');
                 window.location.href = 'index.html';
                 return;
             }
 
             try {
+                console.log('Fetching profile from:', `${API_BASE}/profile`);
                 const response = await fetch(`${API_BASE}/profile`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -411,14 +415,36 @@
                 }
 
                 const profile = await response.json();
+                console.log('Profile loaded:', profile);
                 userBatch = profile.batch;
+                console.log('User batch:', userBatch);
+
+                // Check if user needs to update profile
+                if (!userBatch) {
+                    document.getElementById('groups-container').innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">⚠️</div>
+                            <p style="font-size: 18px; margin-bottom: 10px;">Profile Update Required</p>
+                            <p style="color: #666;">Please update your batch and semester in your profile before accessing WhatsApp groups.</p>
+                            <button onclick="window.location.href='index.html#profile'" style="margin-top: 15px; padding: 10px 20px; background-color: var(--primary-color); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                                Go to Profile
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
 
                 populateSectionSelect();
                 loadGroups();
             } catch (error) {
                 console.error('Auth error:', error);
-                localStorage.removeItem('token');
-                window.location.href = 'index.html';
+                document.getElementById('groups-container').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">❌</div>
+                        <p>Error loading WhatsApp groups. Please try again.</p>
+                        <p style="color: #666; font-size: 14px; margin-top: 10px;">${error.message}</p>
+                    </div>
+                `;
             }
         }
 
@@ -480,12 +506,21 @@
         }
 
         async function loadGroups() {
+            if (!userBatch) {
+                return; // Don't load groups if no batch
+            }
+            
             try {
                 const response = await fetch(`${API_BASE}/whatsapp-groups?batch=${encodeURIComponent(userBatch)}`, {
                     headers: {
                         'Authorization': `Bearer ${getToken()}`
                     }
                 });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch groups: ${response.status}`);
+                }
+                
                 const groups = await response.json();
 
                 displayGroups(groups);
@@ -495,6 +530,7 @@
                     <div class="empty-state">
                         <div class="empty-state-icon">❌</div>
                         <p>Failed to load groups. Please try again later.</p>
+                        <p style="color: #666; font-size: 14px; margin-top: 10px;">${error.message}</p>
                     </div>
                 `;
             }
