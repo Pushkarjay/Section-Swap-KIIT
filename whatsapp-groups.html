@@ -351,6 +351,17 @@
         <!-- Groups Display -->
         <div class="card">
             <h2 class="card-title">Available WhatsApp Groups by Section</h2>
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="batch-filter">Filter by Batch</label>
+                <select id="batch-filter" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px;">
+                    <option value="">All Batches</option>
+                    <option value="2021-25">2021-25 Batch</option>
+                    <option value="2022-26">2022-26 Batch</option>
+                    <option value="2023-27">2023-27 Batch</option>
+                    <option value="2024-28">2024-28 Batch</option>
+                    <option value="2025-29">2025-29 Batch</option>
+                </select>
+            </div>
             <div id="groups-container">
                 <div class="empty-state">
                     <div class="empty-state-icon">📱</div>
@@ -379,74 +390,14 @@
         // All sections
         const allSections = Array.from({length: 50}, (_, i) => (i + 1).toString());
 
-        // User data
-        let userBatch = null;
-
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            checkAuthAndLoadData();
-            document.getElementById('add-group-form').addEventListener('submit', handleAddGroup);
-        });
-
-        function getToken() {
-            return localStorage.getItem('token');
-        }
-
-        async function checkAuthAndLoadData() {
-            const token = getToken();
-            console.log('Token exists:', !!token);
+            populateSectionSelect();
+            loadGroups();
             
-            if (!token) {
-                console.log('No token, redirecting to login');
-                window.location.href = 'index.html';
-                return;
-            }
-
-            try {
-                console.log('Fetching profile from:', `${API_BASE}/profile`);
-                const response = await fetch(`${API_BASE}/profile`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to fetch profile');
-                }
-
-                const profile = await response.json();
-                console.log('Profile loaded:', profile);
-                userBatch = profile.batch;
-                console.log('User batch:', userBatch);
-
-                // Check if user needs to update profile
-                if (!userBatch) {
-                    document.getElementById('groups-container').innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">⚠️</div>
-                            <p style="font-size: 18px; margin-bottom: 10px;">Profile Update Required</p>
-                            <p style="color: #666;">Please update your batch and semester in your profile before accessing WhatsApp groups.</p>
-                            <button onclick="window.location.href='index.html#profile'" style="margin-top: 15px; padding: 10px 20px; background-color: var(--primary-color); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
-                                Go to Profile
-                            </button>
-                        </div>
-                    `;
-                    return;
-                }
-
-                populateSectionSelect();
-                loadGroups();
-            } catch (error) {
-                console.error('Auth error:', error);
-                document.getElementById('groups-container').innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">❌</div>
-                        <p>Error loading WhatsApp groups. Please try again.</p>
-                        <p style="color: #666; font-size: 14px; margin-top: 10px;">${error.message}</p>
-                    </div>
-                `;
-            }
-        }
+            document.getElementById('add-group-form').addEventListener('submit', handleAddGroup);
+            document.getElementById('batch-filter').addEventListener('change', loadGroups);
+        });
 
         function populateSectionSelect() {
             const select = document.getElementById('section');
@@ -464,6 +415,7 @@
             const section = document.getElementById('section').value;
             const groupLink = document.getElementById('group-link').value.trim();
             const groupName = document.getElementById('group-name').value.trim();
+            const selectedBatch = document.getElementById('batch-filter').value || null;
 
             // Validate WhatsApp link
             if (!groupLink.includes('chat.whatsapp.com')) {
@@ -475,14 +427,13 @@
                 const response = await fetch(`${API_BASE}/whatsapp-groups`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${getToken()}`
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         section: section,
                         groupLink: groupLink,
                         groupName: groupName || null,
-                        batch: userBatch
+                        batch: selectedBatch
                     })
                 });
 
@@ -506,22 +457,21 @@
         }
 
         async function loadGroups() {
-            if (!userBatch) {
-                return; // Don't load groups if no batch
-            }
-            
             try {
-                const response = await fetch(`${API_BASE}/whatsapp-groups?batch=${encodeURIComponent(userBatch)}`, {
-                    headers: {
-                        'Authorization': `Bearer ${getToken()}`
-                    }
-                });
+                const selectedBatch = document.getElementById('batch-filter').value;
+                const url = selectedBatch 
+                    ? `${API_BASE}/whatsapp-groups?batch=${encodeURIComponent(selectedBatch)}`
+                    : `${API_BASE}/whatsapp-groups`;
+                
+                console.log('Loading groups from:', url);
+                const response = await fetch(url);
                 
                 if (!response.ok) {
                     throw new Error(`Failed to fetch groups: ${response.status}`);
                 }
                 
                 const groups = await response.json();
+                console.log('Groups loaded:', groups.length);
 
                 displayGroups(groups);
             } catch (error) {
