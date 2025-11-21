@@ -776,6 +776,21 @@
                     <input type="password" id="reg-password" required placeholder="Create a password">
                 </div>
                 <div class="form-group">
+                    <label for="reg-batch">Batch</label>
+                    <input type="text" id="reg-batch" readonly placeholder="Auto-detected from roll number" style="background-color: #f0f0f0;">
+                    <p style="font-size: 12px; color: #666; margin-top: 5px;">✨ Automatically detected from your roll number. You can change this in your profile if needed.</p>
+                </div>
+                <div class="form-group">
+                    <label for="reg-semester">Semester <span style="color: red;">*</span></label>
+                    <select id="reg-semester" required>
+                        <option value="">Select your semester</option>
+                        <option value="2nd sem">2nd Semester</option>
+                        <option value="4th sem">4th Semester</option>
+                        <option value="6th sem">6th Semester</option>
+                        <option value="8th sem">8th Semester</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label for="reg-current-section">Current Section</label>
                     <select id="reg-current-section" required>
                         <option value="">Select your current section</option>
@@ -805,6 +820,14 @@
         <div class="card hidden" id="dashboard-card">
             <h2 class="card-title">Dashboard</h2>
             <div class="dashboard-stats">
+                <div class="stat-card">
+                    <h3>Batch</h3>
+                    <p id="dash-batch">-</p>
+                </div>
+                <div class="stat-card">
+                    <h3>Semester</h3>
+                    <p id="dash-semester">-</p>
+                </div>
                 <div class="stat-card">
                     <h3>Current Section</h3>
                     <p id="dash-current-section">-</p>
@@ -859,6 +882,28 @@
                 <div class="form-group">
                     <label for="profile-email">Email</label>
                     <input type="email" id="profile-email">
+                </div>
+                <div class="form-group">
+                    <label for="profile-batch">Batch</label>
+                    <select id="profile-batch" required>
+                        <option value="">Select your batch</option>
+                        <option value="2021-25">2021-25 Batch</option>
+                        <option value="2022-26">2022-26 Batch</option>
+                        <option value="2023-27">2023-27 Batch</option>
+                        <option value="2024-28">2024-28 Batch</option>
+                        <option value="2025-29">2025-29 Batch</option>
+                    </select>
+                    <p style="font-size: 12px; color: #666; margin-top: 5px;">✨ Auto-detected from roll number. Change if incorrect.</p>
+                </div>
+                <div class="form-group">
+                    <label for="profile-semester">Semester <span style="color: red;">*</span></label>
+                    <select id="profile-semester" required>
+                        <option value="">Select your semester</option>
+                        <option value="2nd sem">2nd Semester</option>
+                        <option value="4th sem">4th Semester</option>
+                        <option value="6th sem">6th Semester</option>
+                        <option value="8th sem">8th Semester</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="profile-current-section">Current Section</label>
@@ -1058,6 +1103,45 @@
         </div>
     </div>
     
+    <!-- Profile Update Required Modal -->
+    <div id="profile-update-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🎓 Profile Update Required</h3>
+                <p style="color: #007bff; background: #e3f2fd; padding: 10px; border-radius: 5px; font-size: 14px;">
+                    <strong>Hey there!</strong> We need a quick update to your profile to enhance your experience. Please provide your batch and semester information.
+                </p>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="update-batch">Batch <span style="color: red;">*</span></label>
+                    <select id="update-batch" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">Select your batch</option>
+                        <option value="2021-25">2021-25 Batch (Graduating 2025)</option>
+                        <option value="2022-26">2022-26 Batch (Graduating 2026)</option>
+                        <option value="2023-27">2023-27 Batch (Graduating 2027)</option>
+                        <option value="2024-28">2024-28 Batch (Graduating 2028)</option>
+                        <option value="2025-29">2025-29 Batch (Graduating 2029)</option>
+                    </select>
+                    <p style="font-size: 12px; color: #666; margin-top: 5px;">✨ Auto-detected from your roll number</p>
+                </div>
+                <div class="form-group">
+                    <label for="update-semester">Semester <span style="color: red;">*</span></label>
+                    <select id="update-semester" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="">Select your semester</option>
+                        <option value="2nd sem">2nd Semester</option>
+                        <option value="4th sem">4th Semester</option>
+                        <option value="6th sem">6th Semester</option>
+                        <option value="8th sem">8th Semester</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="confirm-profile-update" class="btn-success">Update Profile</button>
+            </div>
+        </div>
+    </div>
+    
     <footer>
         <div class="container">
             <p>© 2025 Student Section Swap System. All rights reserved.</p>
@@ -1150,6 +1234,9 @@
             document.getElementById('change-section-btn').addEventListener('click', showChangeSectionModal);
             document.getElementById('cancel-section-change').addEventListener('click', hideChangeSectionModal);
             document.getElementById('confirm-section-change').addEventListener('click', handleSectionChange);
+            
+            // Profile update modal
+            document.getElementById('confirm-profile-update').addEventListener('click', handleProfileUpdateModal);
 
             // Existing swap functionality
             document.getElementById('find-swap-btn').addEventListener('click', findSwapOptions);
@@ -1164,6 +1251,75 @@
             document.getElementById('sort-by').addEventListener('change', applySorting);
             document.getElementById('sort-order-btn').addEventListener('click', toggleSortOrder);
             document.getElementById('clear-filters-btn').addEventListener('click', clearFilters);
+            
+            // Auto-detect batch when roll number is entered in registration
+            document.getElementById('reg-roll-number').addEventListener('input', (e) => {
+                const rollNumber = e.target.value.trim();
+                if (rollNumber.length >= 2) {
+                    const batch = detectBatchFromRollNumber(rollNumber);
+                    document.getElementById('reg-batch').value = batch || 'Unable to detect';
+                }
+            });
+        }
+        
+        // Utility function to detect batch from roll number
+        function detectBatchFromRollNumber(rollNumber) {
+            const yearPrefix = rollNumber.substring(0, 2);
+            const startYear = parseInt('20' + yearPrefix);
+            
+            if (isNaN(startYear) || startYear < 2020 || startYear > 2030) {
+                return null;
+            }
+            
+            const endYear = startYear + 4;
+            return `${startYear}-${endYear.toString().substring(2)}`;
+        }
+        
+        // Show profile update modal for existing users
+        function showProfileUpdateModal(detectedBatch = null) {
+            const modal = document.getElementById('profile-update-modal');
+            if (detectedBatch) {
+                document.getElementById('update-batch').value = detectedBatch;
+            }
+            modal.classList.add('show');
+        }
+        
+        // Hide profile update modal
+        function hideProfileUpdateModal() {
+            const modal = document.getElementById('profile-update-modal');
+            modal.classList.remove('show');
+        }
+        
+        // Handle profile update from modal
+        async function handleProfileUpdateModal() {
+            const batch = document.getElementById('update-batch').value;
+            const semester = document.getElementById('update-semester').value;
+            
+            if (!batch || !semester) {
+                alert('Please select both batch and semester');
+                return;
+            }
+            
+            try {
+                // Get current profile data
+                const profile = await apiCall('/profile');
+                
+                // Update with batch and semester
+                await apiCall('/profile', 'PUT', {
+                    name: profile.name,
+                    phoneNumber: profile.phone_number,
+                    email: profile.email || '',
+                    desiredSections: profile.desired_sections || [],
+                    batch: batch,
+                    semester: semester
+                });
+                
+                hideProfileUpdateModal();
+                alert('Profile updated successfully!');
+                showDashboard();
+            } catch (error) {
+                alert('Failed to update profile: ' + error.message);
+            }
         }
 
         // API Functions
@@ -1211,6 +1367,7 @@
         }
 
         // Authentication functions
+        // Authentication functions
         async function handleLogin(e) {
             e.preventDefault();
             
@@ -1224,7 +1381,13 @@
                 localStorage.setItem('authToken', authToken);
                 currentUser = result.student;
                 
-                showDashboard();
+                // Check if profile update is needed
+                if (result.needsProfileUpdate) {
+                    const detectedBatch = currentUser.batch || detectBatchFromRollNumber(rollNumber);
+                    showProfileUpdateModal(detectedBatch);
+                } else {
+                    showDashboard();
+                }
             } catch (error) {
                 alert('Login failed: ' + error.message);
             }
@@ -1234,15 +1397,25 @@
             e.preventDefault();
             
             const desiredSections = getDesiredSectionsFromContainer('reg-desired-sections-container');
+            const rollNumber = document.getElementById('reg-roll-number').value.trim();
+            const batch = document.getElementById('reg-batch').value || detectBatchFromRollNumber(rollNumber);
+            const semester = document.getElementById('reg-semester').value;
+            
+            if (!semester) {
+                alert('Please select your semester');
+                return;
+            }
             
             const data = {
-                rollNumber: document.getElementById('reg-roll-number').value.trim(),
+                rollNumber: rollNumber,
                 name: document.getElementById('reg-name').value.trim(),
                 phoneNumber: document.getElementById('reg-phone').value.trim(),
                 email: document.getElementById('reg-email').value.trim(),
                 password: document.getElementById('reg-password').value,
                 currentSection: document.getElementById('reg-current-section').value,
-                desiredSections: desiredSections
+                desiredSections: desiredSections,
+                batch: batch,
+                semester: semester
             };
 
             try {
@@ -1282,6 +1455,8 @@
                 document.getElementById('profile-name').value = profile.name;
                 document.getElementById('profile-phone').value = profile.phone_number;
                 document.getElementById('profile-email').value = profile.email || '';
+                document.getElementById('profile-batch').value = profile.batch || '';
+                document.getElementById('profile-semester').value = profile.semester || '';
                 document.getElementById('profile-current-section').value = profile.current_section;
                 
                 // Populate desired sections container
@@ -1299,12 +1474,21 @@
             e.preventDefault();
             
             const desiredSections = getDesiredSectionsFromContainer('desired-sections-container');
+            const batch = document.getElementById('profile-batch').value;
+            const semester = document.getElementById('profile-semester').value;
+            
+            if (!batch || !semester) {
+                alert('Batch and Semester are required!');
+                return;
+            }
             
             const data = {
                 name: document.getElementById('profile-name').value.trim(),
                 phoneNumber: document.getElementById('profile-phone').value.trim(),
                 email: document.getElementById('profile-email').value.trim(),
-                desiredSections: desiredSections
+                desiredSections: desiredSections,
+                batch: batch,
+                semester: semester
             };
 
             try {
@@ -1322,6 +1506,9 @@
                 console.log('Loading dashboard... (attempt', retryCount + 1, ')');
                 const dashboardData = await apiCall('/dashboard');
                 
+                // Display batch and semester
+                document.getElementById('dash-batch').textContent = dashboardData.student.batch || 'Not set';
+                document.getElementById('dash-semester').textContent = dashboardData.student.semester || 'Not set';
                 document.getElementById('dash-current-section').textContent = dashboardData.student.current_section;
                 
                 // Display desired sections with priority

@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS students (
     password_hash VARCHAR(255) NOT NULL,
     current_section VARCHAR(10) NOT NULL,
     desired_sections TEXT, -- JSON array of sections in priority order
+    batch VARCHAR(10), -- Format: '2022-26', '2023-27', '2024-28'
+    semester VARCHAR(10), -- Values: '2nd sem', '4th sem', '6th sem', '8th sem'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -43,6 +45,7 @@ CREATE TABLE IF NOT EXISTS swap_history (
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_students_roll ON students(roll_number);
 CREATE INDEX IF NOT EXISTS idx_students_current_section ON students(current_section);
+CREATE INDEX IF NOT EXISTS idx_students_batch ON students(batch);
 CREATE INDEX IF NOT EXISTS idx_swap_requests_status ON swap_requests(status);
 CREATE INDEX IF NOT EXISTS idx_swap_history_date ON swap_history(swap_date);
 

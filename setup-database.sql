@@ -14,10 +14,13 @@ CREATE TABLE IF NOT EXISTS students (
     password_hash VARCHAR(255) NOT NULL,
     current_section VARCHAR(10) NOT NULL,
     desired_sections JSON, -- Array of sections in priority order
+    batch VARCHAR(10), -- Format: '2022-26', '2023-27', '2024-28'
+    semester VARCHAR(10), -- Values: '2nd sem', '4th sem', '6th sem', '8th sem'
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_roll_number (roll_number),
-    INDEX idx_current_section (current_section)
+    INDEX idx_current_section (current_section),
+    INDEX idx_batch (batch)
 );
 
 -- Swap requests table
@@ -50,12 +53,12 @@ CREATE TABLE IF NOT EXISTS swap_history (
 );
 
 -- Insert sample data for testing
-INSERT IGNORE INTO students (roll_number, name, phone_number, email, password_hash, current_section, desired_sections) VALUES
-('21051001', 'John Doe', '9876543210', 'john@kiit.ac.in', '$2a$10$example.hash.here', '4', '["32"]'),
-('21051002', 'Jane Smith', '9876543211', 'jane@kiit.ac.in', '$2a$10$example.hash.here', '5', '["20"]'),
-('21051003', 'Bob Johnson', '9876543212', 'bob@kiit.ac.in', '$2a$10$example.hash.here', '6', '["6"]'),
-('21051004', 'Alice Brown', '9876543213', 'alice@kiit.ac.in', '$2a$10$example.hash.here', '20', '["4"]'),
-('21051005', 'Charlie Wilson', '9876543214', 'charlie@kiit.ac.in', '$2a$10$example.hash.here', '32', '["5"]');
+INSERT IGNORE INTO students (roll_number, name, phone_number, email, password_hash, current_section, desired_sections, batch, semester) VALUES
+('21051001', 'John Doe', '9876543210', 'john@kiit.ac.in', '$2a$10$example.hash.here', '4', '["32"]', '2021-25', '8th sem'),
+('21051002', 'Jane Smith', '9876543211', 'jane@kiit.ac.in', '$2a$10$example.hash.here', '5', '["20"]', '2021-25', '8th sem'),
+('21051003', 'Bob Johnson', '9876543212', 'bob@kiit.ac.in', '$2a$10$example.hash.here', '6', '["6"]', '2021-25', '8th sem'),
+('21051004', 'Alice Brown', '9876543213', 'alice@kiit.ac.in', '$2a$10$example.hash.here', '20', '["4"]', '2021-25', '8th sem'),
+('21051005', 'Charlie Wilson', '9876543214', 'charlie@kiit.ac.in', '$2a$10$example.hash.here', '32', '["5"]', '2021-25', '8th sem');
 
 -- Create a view for easy querying
 CREATE OR REPLACE VIEW student_swap_view AS

@@ -96,6 +96,48 @@ async function executeQuery(query, params = []) {
     }
 }
 
+// Utility function to detect batch from roll number
+function detectBatchFromRollNumber(rollNumber) {
+    // Extract first 2 digits from roll number
+    const yearPrefix = rollNumber.substring(0, 2);
+    const startYear = parseInt('20' + yearPrefix);
+    
+    if (isNaN(startYear) || startYear < 2020 || startYear > 2030) {
+        return null; // Invalid year
+    }
+    
+    const endYear = startYear + 4;
+    return `${startYear}-${endYear.toString().substring(2)}`;
+}
+
+// Utility function to calculate semester from batch and current date
+function calculateSemesterFromBatch(batch) {
+    if (!batch) return null;
+    
+    const [startYear] = batch.split('-').map(y => parseInt(y.length === 2 ? '20' + y : y));
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1; // 1-12
+    
+    // Calculate years elapsed
+    let yearsElapsed = currentYear - startYear;
+    
+    // Adjust for semester timing (assuming odd semesters start in July-Aug)
+    if (currentMonth >= 7) {
+        yearsElapsed += 0.5; // Second half of the year
+    }
+    
+    // Calculate semester (2 semesters per year)
+    const semesterNumber = Math.ceil(yearsElapsed * 2);
+    
+    // Cap at 8th semester
+    const cappedSemester = Math.min(Math.max(semesterNumber, 2), 8);
+    
+    // Ensure even semester
+    const evenSemester = cappedSemester % 2 === 0 ? cappedSemester : cappedSemester + 1;
+    
+    return `${evenSemester}th sem`;
+}
+
 // Initialize Database
 async function initializeDatabase() {
     try {
@@ -112,7 +154,9 @@ async function initializeDatabase() {
                     email VARCHAR(100),
                     password_hash VARCHAR(255) NOT NULL,
                     current_section VARCHAR(10) NOT NULL,
-                    desired_sections TEXT, -- JSON array of sections in priority order
+                    desired_sections TEXT,
+                    batch VARCHAR(10),
+                    semester VARCHAR(10),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -124,8 +168,26 @@ async function initializeDatabase() {
                     ALTER TABLE students ADD COLUMN IF NOT EXISTS desired_sections TEXT
                 `);
             } catch (e) {
-                // Column might already exist, ignore error
                 console.log('Column desired_sections already exists or other issue:', e.message);
+            }
+            
+            // Add batch and semester columns if they don't exist (for existing databases)
+            try {
+                await executeQuery(`
+                    ALTER TABLE students ADD COLUMN IF NOT EXISTS batch VARCHAR(10)
+                `);
+                console.log('✅ Added batch column');
+            } catch (e) {
+                console.log('Column batch already exists or other issue:', e.message);
+            }
+            
+            try {
+                await executeQuery(`
+                    ALTER TABLE students ADD COLUMN IF NOT EXISTS semester VARCHAR(10)
+                `);
+                console.log('✅ Added semester column');
+            } catch (e) {
+                console.log('Column semester already exists or other issue:', e.message);
             }
             
             // Migrate data from old column name if it exists
@@ -136,8 +198,29 @@ async function initializeDatabase() {
                 `);
                 console.log('✅ Migrated data from desired_section to desired_sections');
             } catch (e) {
-                // Old column doesn't exist, ignore
                 console.log('No migration needed for desired_section column');
+            }
+            
+            // Auto-populate batch for existing students who don't have it
+            try {
+                const [studentsWithoutBatch] = await executeQuery(`
+                    SELECT id, roll_number FROM students WHERE batch IS NULL
+                `);
+                
+                for (const student of studentsWithoutBatch) {
+                    const detectedBatch = detectBatchFromRollNumber(student.roll_number);
+                    if (detectedBatch) {
+                        await executeQuery(`
+                            UPDATE students SET batch = $1 WHERE id = $2
+                        `, [detectedBatch, student.id]);
+                    }
+                }
+                
+                if (studentsWithoutBatch.length > 0) {
+                    console.log(`✅ Auto-populated batch for ${studentsWithoutBatch.length} existing students`);
+                }
+            } catch (e) {
+                console.log('Batch auto-population skipped:', e.message);
             }
             
             await executeQuery(`
@@ -168,10 +251,11 @@ async function initializeDatabase() {
                 CREATE TABLE IF NOT EXISTS whatsapp_groups (
                     id SERIAL PRIMARY KEY,
                     section VARCHAR(10) NOT NULL,
+                    batch VARCHAR(10),
                     group_link TEXT NOT NULL,
                     group_name VARCHAR(100),
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(section, group_link)
+                    UNIQUE(section, batch, group_link)
                 )
             `);
             
@@ -203,11 +287,58 @@ async function initializeDatabase() {
                         email VARCHAR(100),
                         password_hash VARCHAR(255) NOT NULL,
                         current_section VARCHAR(10) NOT NULL,
-                        desired_sections JSON, -- Array of sections in priority order
+                        desired_sections JSON,
+                        batch VARCHAR(10),
+                        semester VARCHAR(10),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                     )
                 `);
+                
+                // Add batch and semester columns if they don't exist (for existing databases)
+                try {
+                    await connection.execute(`
+                        ALTER TABLE students ADD COLUMN batch VARCHAR(10)
+                    `);
+                    console.log('✅ Added batch column');
+                } catch (e) {
+                    if (!e.message.includes('Duplicate column')) {
+                        console.log('Column batch already exists or other issue:', e.message);
+                    }
+                }
+                
+                try {
+                    await connection.execute(`
+                        ALTER TABLE students ADD COLUMN semester VARCHAR(10)
+                    `);
+                    console.log('✅ Added semester column');
+                } catch (e) {
+                    if (!e.message.includes('Duplicate column')) {
+                        console.log('Column semester already exists or other issue:', e.message);
+                    }
+                }
+                
+                // Auto-populate batch for existing students who don't have it
+                try {
+                    const [studentsWithoutBatch] = await connection.execute(`
+                        SELECT id, roll_number FROM students WHERE batch IS NULL
+                    `);
+                    
+                    for (const student of studentsWithoutBatch) {
+                        const detectedBatch = detectBatchFromRollNumber(student.roll_number);
+                        if (detectedBatch) {
+                            await connection.execute(`
+                                UPDATE students SET batch = ? WHERE id = ?
+                            `, [detectedBatch, student.id]);
+                        }
+                    }
+                    
+                    if (studentsWithoutBatch.length > 0) {
+                        console.log(`✅ Auto-populated batch for ${studentsWithoutBatch.length} existing students`);
+                    }
+                } catch (e) {
+                    console.log('Batch auto-population skipped:', e.message);
+                }
                 
                 await connection.execute(`
                     CREATE TABLE IF NOT EXISTS swap_requests (
@@ -240,10 +371,11 @@ async function initializeDatabase() {
                     CREATE TABLE IF NOT EXISTS whatsapp_groups (
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         section VARCHAR(10) NOT NULL,
+                        batch VARCHAR(10),
                         group_link TEXT NOT NULL,
                         group_name VARCHAR(100),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE KEY unique_section_link (section, group_link(255))
+                        UNIQUE KEY unique_section_batch_link (section, batch, group_link(255))
                     )
                 `);
                 
@@ -350,7 +482,15 @@ async function sendSwapNotification(toEmail, studentName, partnerName, partnerRo
 // Register new student
 app.post('/api/register', async (req, res) => {
     try {
-        const { rollNumber, name, phoneNumber, email, password, currentSection, desiredSections } = req.body;
+        const { rollNumber, name, phoneNumber, email, password, currentSection, desiredSections, semester, batch: manualBatch } = req.body;
+        
+        // Auto-detect batch from roll number
+        let batch = manualBatch || detectBatchFromRollNumber(rollNumber);
+        
+        // If batch couldn't be detected, use manual batch or set to null
+        if (!batch) {
+            batch = null;
+        }
         
         // Hash password
         const saltRounds = 10;
@@ -361,14 +501,14 @@ app.post('/api/register', async (req, res) => {
         
         if (isPostgreSQL) {
             const [result] = await executeQuery(
-                'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section, desired_sections) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-                [rollNumber, name, phoneNumber, email, passwordHash, currentSection, desiredSectionsJson]
+                'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section, desired_sections, batch, semester) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id',
+                [rollNumber, name, phoneNumber, email, passwordHash, currentSection, desiredSectionsJson, batch, semester]
             );
             res.status(201).json({ message: 'Student registered successfully', id: result[0].id });
         } else {
             const [result] = await executeQuery(
-                'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section, desired_sections) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [rollNumber, name, phoneNumber, email, passwordHash, currentSection, desiredSectionsJson]
+                'INSERT INTO students (roll_number, name, phone_number, email, password_hash, current_section, desired_sections, batch, semester) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [rollNumber, name, phoneNumber, email, passwordHash, currentSection, desiredSectionsJson, batch, semester]
             );
             res.status(201).json({ message: 'Student registered successfully', id: result.insertId });
         }
@@ -403,6 +543,24 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
         
+        // Check if student needs to update batch/semester
+        const needsProfileUpdate = !student.batch || !student.semester;
+        
+        // If batch is missing, try to auto-detect it
+        if (!student.batch) {
+            const detectedBatch = detectBatchFromRollNumber(student.roll_number);
+            if (detectedBatch) {
+                // Update the database with detected batch
+                await executeQuery(
+                    isPostgreSQL ?
+                        'UPDATE students SET batch = $1 WHERE id = $2' :
+                        'UPDATE students SET batch = ? WHERE id = ?',
+                    [detectedBatch, student.id]
+                );
+                student.batch = detectedBatch;
+            }
+        }
+        
         const token = jwt.sign(
             { id: student.id, rollNumber: student.roll_number },
             process.env.JWT_SECRET || 'your-secret-key',
@@ -412,12 +570,15 @@ app.post('/api/login', async (req, res) => {
         res.json({
             message: 'Login successful',
             token,
+            needsProfileUpdate: needsProfileUpdate,
             student: {
                 id: student.id,
                 rollNumber: student.roll_number,
                 name: student.name,
                 currentSection: student.current_section,
-                desiredSections: student.desired_sections ? JSON.parse(student.desired_sections) : []
+                desiredSections: student.desired_sections ? JSON.parse(student.desired_sections) : [],
+                batch: student.batch,
+                semester: student.semester
             }
         });
     } catch (error) {
@@ -471,8 +632,8 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
     try {
         const [rows] = await executeQuery(
             isPostgreSQL ? 
-                'SELECT id, roll_number, name, phone_number, email, current_section, desired_sections, created_at FROM students WHERE id = $1' :
-                'SELECT id, roll_number, name, phone_number, email, current_section, desired_sections, created_at FROM students WHERE id = ?',
+                'SELECT id, roll_number, name, phone_number, email, current_section, desired_sections, batch, semester, created_at FROM students WHERE id = $1' :
+                'SELECT id, roll_number, name, phone_number, email, current_section, desired_sections, batch, semester, created_at FROM students WHERE id = ?',
             [req.user.id]
         );
         
@@ -481,6 +642,22 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
         }
         
         const student = rows[0];
+        
+        // Auto-detect batch if missing
+        if (!student.batch) {
+            const detectedBatch = detectBatchFromRollNumber(student.roll_number);
+            if (detectedBatch) {
+                student.batch = detectedBatch;
+                // Update in database
+                await executeQuery(
+                    isPostgreSQL ?
+                        'UPDATE students SET batch = $1 WHERE id = $2' :
+                        'UPDATE students SET batch = ? WHERE id = ?',
+                    [detectedBatch, student.id]
+                );
+            }
+        }
+        
         res.json({
             ...student,
             desired_sections: student.desired_sections ? JSON.parse(student.desired_sections) : []
@@ -494,16 +671,16 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
 // Update profile
 app.put('/api/profile', authenticateToken, async (req, res) => {
     try {
-        const { name, phoneNumber, email, desiredSections } = req.body;
+        const { name, phoneNumber, email, desiredSections, batch, semester } = req.body;
         
         // Convert desired sections array to JSON string
         const desiredSectionsJson = JSON.stringify(desiredSections || []);
         
         await executeQuery(
             isPostgreSQL ?
-                'UPDATE students SET name = $1, phone_number = $2, email = $3, desired_sections = $4 WHERE id = $5' :
-                'UPDATE students SET name = ?, phone_number = ?, email = ?, desired_sections = ? WHERE id = ?',
-            [name, phoneNumber, email, desiredSectionsJson, req.user.id]
+                'UPDATE students SET name = $1, phone_number = $2, email = $3, desired_sections = $4, batch = $5, semester = $6 WHERE id = $7' :
+                'UPDATE students SET name = ?, phone_number = ?, email = ?, desired_sections = ?, batch = ?, semester = ? WHERE id = ?',
+            [name, phoneNumber, email, desiredSectionsJson, batch, semester, req.user.id]
         );
         
         res.json({ message: 'Profile updated successfully' });
@@ -578,6 +755,11 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
         
         const student = currentStudent[0];
         
+        // Check if student has batch information
+        if (!student.batch) {
+            return res.status(400).json({ error: 'Please update your batch information in your profile first' });
+        }
+        
         // If searching for a specific section, use that; otherwise use priority list
         const sectionsToSearch = desiredSection ? [desiredSection] : 
             (student.desired_sections ? JSON.parse(student.desired_sections) : []);
@@ -592,18 +774,18 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
                 continue; // Skip if already in desired section
             }
             
-            // Check for direct swap
+            // Check for direct swap - ONLY within the same batch
             const [directSwapPartners] = await executeQuery(
                 isPostgreSQL ? `
                     SELECT id, roll_number, name, current_section, desired_sections 
                     FROM students 
-                    WHERE current_section = $1 AND id != $2
+                    WHERE current_section = $1 AND id != $2 AND batch = $3
                 ` : `
                     SELECT id, roll_number, name, current_section, desired_sections 
                     FROM students 
-                    WHERE current_section = ? AND id != ?
+                    WHERE current_section = ? AND id != ? AND batch = ?
                 `,
-                [targetSection, student.id]
+                [targetSection, student.id, student.batch]
             );
             
             // Find partners who want student's current section
@@ -639,8 +821,8 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
                 });
             }
             
-            // Find multi-step swap for this section
-            const swapPath = await findMultiStepSwap(student.current_section, targetSection, student.id);
+            // Find multi-step swap for this section (within same batch)
+            const swapPath = await findMultiStepSwap(student.current_section, targetSection, student.id, student.batch);
             
             if (swapPath) {
                 // Send email notification for multi-step swap
@@ -668,7 +850,7 @@ app.post('/api/find-swap', authenticateToken, async (req, res) => {
         
         res.json({ 
             type: 'none', 
-            message: `No swaps found for any of your desired sections: ${sectionsToSearch.join(', ')}` 
+            message: `No swaps found for any of your desired sections within your batch (${student.batch}): ${sectionsToSearch.join(', ')}` 
         });
     } catch (error) {
         console.error('Find swap error:', error);
@@ -690,6 +872,12 @@ app.post('/api/find-all-swaps', authenticateToken, async (req, res) => {
         }
         
         const student = currentStudent[0];
+        
+        // Check if student has batch information
+        if (!student.batch) {
+            return res.status(400).json({ error: 'Please update your batch information in your profile first' });
+        }
+        
         const desiredSections = student.desired_sections ? JSON.parse(student.desired_sections) : [];
         
         if (desiredSections.length === 0) {
@@ -709,18 +897,18 @@ app.post('/api/find-all-swaps', authenticateToken, async (req, res) => {
                 continue; // Skip if already in desired section
             }
             
-            // Check for direct swap
+            // Check for direct swap - ONLY within the same batch
             const [directSwapPartners] = await executeQuery(
                 isPostgreSQL ? `
                     SELECT id, roll_number, name, current_section, desired_sections 
                     FROM students 
-                    WHERE current_section = $1 AND id != $2
+                    WHERE current_section = $1 AND id != $2 AND batch = $3
                 ` : `
                     SELECT id, roll_number, name, current_section, desired_sections 
                     FROM students 
-                    WHERE current_section = ? AND id != ?
+                    WHERE current_section = ? AND id != ? AND batch = ?
                 `,
-                [targetSection, student.id]
+                [targetSection, student.id, student.batch]
             );
             
             // Find partners who want student's current section
@@ -743,8 +931,8 @@ app.post('/api/find-all-swaps', authenticateToken, async (req, res) => {
                 });
             }
             
-            // Find multi-step swap for this section
-            const swapPath = await findMultiStepSwap(student.current_section, targetSection, student.id);
+            // Find multi-step swap for this section (within same batch)
+            const swapPath = await findMultiStepSwap(student.current_section, targetSection, student.id, student.batch);
             
             if (swapPath) {
                 swapResults.push({
@@ -790,7 +978,7 @@ app.post('/api/find-all-swaps', authenticateToken, async (req, res) => {
         if (swapResults.length === 0) {
             res.json({ 
                 type: 'none', 
-                message: `No swaps found for any of your desired sections: ${desiredSections.join(', ')}`,
+                message: `No swaps found for any of your desired sections within your batch (${student.batch}): ${desiredSections.join(', ')}`,
                 desiredSections: desiredSections
             });
         } else {
@@ -873,6 +1061,22 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Student not found' });
         }
         
+        const currentStudent = student[0];
+        
+        // Auto-detect batch if missing
+        if (!currentStudent.batch) {
+            const detectedBatch = detectBatchFromRollNumber(currentStudent.roll_number);
+            if (detectedBatch) {
+                await executeQuery(
+                    isPostgreSQL ?
+                        'UPDATE students SET batch = $1 WHERE id = $2' :
+                        'UPDATE students SET batch = ? WHERE id = ?',
+                    [detectedBatch, currentStudent.id]
+                );
+                currentStudent.batch = detectedBatch;
+            }
+        }
+        
         // Get pending requests
         const [pendingRequests] = await executeQuery(
             isPostgreSQL ? 
@@ -889,15 +1093,19 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
             [req.user.id]
         );
         
-        // Get all students for swap sheet
-        const [allStudents] = await executeQuery(`
-            SELECT id, roll_number, name, current_section, desired_sections
-            FROM students
-            ORDER BY roll_number
-        `);
+        // Get all students from the SAME BATCH for swap sheet
+        const [allStudents] = await executeQuery(
+            currentStudent.batch ? 
+                (isPostgreSQL ? 
+                    'SELECT id, roll_number, name, current_section, desired_sections, batch, semester FROM students WHERE batch = $1 ORDER BY roll_number' :
+                    'SELECT id, roll_number, name, current_section, desired_sections, batch, semester FROM students WHERE batch = ? ORDER BY roll_number'
+                ) :
+                'SELECT id, roll_number, name, current_section, desired_sections, batch, semester FROM students ORDER BY roll_number',
+            currentStudent.batch ? [currentStudent.batch] : []
+        );
         
-        // Get comprehensive match information for all students
-        const studentMatches = await checkAllStudentMatches();
+        // Get comprehensive match information for all students (within same batch)
+        const studentMatches = await checkAllStudentMatches(currentStudent.batch);
         
         // Parse desired_sections for each student and add match status
         const studentsWithParsedSections = allStudents.map(student => {
@@ -917,35 +1125,35 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
             }
         });
         
-        // Get available direct swaps for this student
+        // Get available direct swaps for this student (within same batch)
         const availableSwaps = [];
         
-        if (student[0].desired_sections) {
+        if (currentStudent.desired_sections && currentStudent.batch) {
             try {
-                const studentDesiredSections = JSON.parse(student[0].desired_sections);
+                const studentDesiredSections = JSON.parse(currentStudent.desired_sections);
                 
                 for (const targetSection of studentDesiredSections) {
-                    if (targetSection === student[0].current_section) continue;
+                    if (targetSection === currentStudent.current_section) continue;
                     
-                    // Find students in target section who want current student's section
+                    // Find students in target section who want current student's section (SAME BATCH)
                     const [potentialPartners] = await executeQuery(
                         isPostgreSQL ? `
                             SELECT id, roll_number, name, phone_number, current_section, desired_sections 
                             FROM students 
-                            WHERE current_section = $1 AND id != $2
+                            WHERE current_section = $1 AND id != $2 AND batch = $3
                         ` : `
                             SELECT id, roll_number, name, phone_number, current_section, desired_sections 
                             FROM students 
-                            WHERE current_section = ? AND id != ?
+                            WHERE current_section = ? AND id != ? AND batch = ?
                         `,
-                        [targetSection, req.user.id]
+                        [targetSection, req.user.id, currentStudent.batch]
                     );
                     
                     const directPartners = potentialPartners.filter(partner => {
                         if (!partner.desired_sections) return false;
                         try {
                             const partnerDesired = JSON.parse(partner.desired_sections);
-                            return partnerDesired.includes(student[0].current_section);
+                            return partnerDesired.includes(currentStudent.current_section);
                         } catch (e) {
                             return false;
                         }
@@ -965,8 +1173,8 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
                         });
                     }
                     
-                    // Check for multi-step swaps for this section
-                    const multiStepPath = await findMultiStepSwap(student[0].current_section, targetSection, req.user.id);
+                    // Check for multi-step swaps for this section (within same batch)
+                    const multiStepPath = await findMultiStepSwap(currentStudent.current_section, targetSection, req.user.id, currentStudent.batch);
                     if (multiStepPath && multiStepPath.length > 0) {
                         availableSwaps.push({
                             type: 'multi',
@@ -993,11 +1201,11 @@ app.get('/api/dashboard', authenticateToken, async (req, res) => {
         
         const dashboardData = {
             student: {
-                ...student[0],
+                ...currentStudent,
                 desired_sections: (() => {
                     try {
-                        return student[0].desired_sections ? 
-                            JSON.parse(student[0].desired_sections) : [];
+                        return currentStudent.desired_sections ? 
+                            JSON.parse(currentStudent.desired_sections) : [];
                     } catch (e) {
                         console.error('Error parsing student desired_sections:', e);
                         return [];
@@ -1045,16 +1253,16 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Comprehensive multi-step swap algorithm using cycle detection
-async function findMultiStepSwap(fromSection, toSection, excludeId) {
+async function findMultiStepSwap(fromSection, toSection, excludeId, batch = null) {
     try {
         // Get current user info first
         const [currentUserResult] = await executeQuery(
             isPostgreSQL ? `
-                SELECT id, roll_number, name, phone_number, current_section, desired_sections 
+                SELECT id, roll_number, name, phone_number, current_section, desired_sections, batch 
                 FROM students 
                 WHERE id = $1
             ` : `
-                SELECT id, roll_number, name, phone_number, current_section, desired_sections 
+                SELECT id, roll_number, name, phone_number, current_section, desired_sections, batch 
                 FROM students 
                 WHERE id = ?
             `,
@@ -1063,18 +1271,31 @@ async function findMultiStepSwap(fromSection, toSection, excludeId) {
         
         const currentUser = currentUserResult.length > 0 ? currentUserResult[0] : null;
         
-        // Get all other students and their desired swaps
+        // Use batch from parameter or current user's batch
+        const filterBatch = batch || (currentUser ? currentUser.batch : null);
+        
+        // Get all other students and their desired swaps (SAME BATCH only)
         const [students] = await executeQuery(
-            isPostgreSQL ? `
-                SELECT id, roll_number, name, phone_number, current_section, desired_sections 
-                FROM students 
-                WHERE id != $1
-            ` : `
-                SELECT id, roll_number, name, phone_number, current_section, desired_sections 
-                FROM students 
-                WHERE id != ?
-            `,
-            [excludeId]
+            filterBatch ? 
+                (isPostgreSQL ? `
+                    SELECT id, roll_number, name, phone_number, current_section, desired_sections, batch 
+                    FROM students 
+                    WHERE id != $1 AND batch = $2
+                ` : `
+                    SELECT id, roll_number, name, phone_number, current_section, desired_sections, batch 
+                    FROM students 
+                    WHERE id != ? AND batch = ?
+                `) :
+                (isPostgreSQL ? `
+                    SELECT id, roll_number, name, phone_number, current_section, desired_sections, batch 
+                    FROM students 
+                    WHERE id != $1
+                ` : `
+                    SELECT id, roll_number, name, phone_number, current_section, desired_sections, batch 
+                    FROM students 
+                    WHERE id != ?
+                `),
+            filterBatch ? [excludeId, filterBatch] : [excludeId]
         );
         
         // Parse all students' desired sections
@@ -1313,13 +1534,17 @@ function findSwapCycle(startSection, targetSection, students, maxDepth, currentU
 }
 
 // Enhanced function to check if any student has potential swaps (direct or multi-step)
-async function checkAllStudentMatches() {
+async function checkAllStudentMatches(batch = null) {
     try {
-        const [allStudents] = await executeQuery(`
-            SELECT id, roll_number, name, current_section, desired_sections
-            FROM students
-            ORDER BY roll_number
-        `);
+        const [allStudents] = await executeQuery(
+            batch ? 
+                (isPostgreSQL ? 
+                    'SELECT id, roll_number, name, current_section, desired_sections, batch FROM students WHERE batch = $1 ORDER BY roll_number' :
+                    'SELECT id, roll_number, name, current_section, desired_sections, batch FROM students WHERE batch = ? ORDER BY roll_number'
+                ) :
+                'SELECT id, roll_number, name, current_section, desired_sections, batch FROM students ORDER BY roll_number',
+            batch ? [batch] : []
+        );
         
         const studentMatches = {};
         
@@ -1356,7 +1581,7 @@ async function checkAllStudentMatches() {
             for (const targetSection of student.desired_sections_parsed) {
                 if (targetSection === student.current_section) continue;
                 
-                // Check for direct matches first (faster)
+                // Check for direct matches first (faster) - within same batch
                 const directMatches = validStudents.filter(other => 
                     other.current_section === targetSection && 
                     other.id !== student.id &&
@@ -1689,11 +1914,19 @@ app.get('/api/debug-swaps', async (req, res) => {
 
 // WhatsApp Groups endpoints
 
-// Get all WhatsApp groups
+// Get all WhatsApp groups (optionally filtered by batch)
 app.get('/api/whatsapp-groups', async (req, res) => {
     try {
+        const { batch } = req.query;
+        
         const [groups] = await executeQuery(
-            'SELECT * FROM whatsapp_groups ORDER BY section, created_at'
+            batch ?
+                (isPostgreSQL ?
+                    'SELECT * FROM whatsapp_groups WHERE batch = $1 OR batch IS NULL ORDER BY batch, section, created_at' :
+                    'SELECT * FROM whatsapp_groups WHERE batch = ? OR batch IS NULL ORDER BY batch, section, created_at'
+                ) :
+                'SELECT * FROM whatsapp_groups ORDER BY batch, section, created_at',
+            batch ? [batch] : []
         );
         res.json(groups);
     } catch (error) {
@@ -1705,23 +1938,23 @@ app.get('/api/whatsapp-groups', async (req, res) => {
 // Add WhatsApp group
 app.post('/api/whatsapp-groups', async (req, res) => {
     try {
-        const { section, groupLink, groupName } = req.body;
+        const { section, batch, groupLink, groupName } = req.body;
         
         if (!section || !groupLink) {
             return res.status(400).json({ error: 'Section and group link are required' });
         }
 
-        // Check if this exact link already exists for this section
+        // Check if this exact link already exists for this section and batch
         const [existing] = await executeQuery(
             isPostgreSQL ? 
-                'SELECT * FROM whatsapp_groups WHERE section = $1 AND group_link = $2' :
-                'SELECT * FROM whatsapp_groups WHERE section = ? AND group_link = ?',
-            [section, groupLink]
+                'SELECT * FROM whatsapp_groups WHERE section = $1 AND batch = $2 AND group_link = $3' :
+                'SELECT * FROM whatsapp_groups WHERE section = ? AND batch = ? AND group_link = ?',
+            [section, batch, groupLink]
         );
 
         if (existing.length > 0) {
             return res.json({ 
-                message: 'This group link already exists for this section',
+                message: 'This group link already exists for this section and batch',
                 duplicate: true 
             });
         }
@@ -1729,13 +1962,13 @@ app.post('/api/whatsapp-groups', async (req, res) => {
         // Insert new group
         if (isPostgreSQL) {
             await executeQuery(
-                'INSERT INTO whatsapp_groups (section, group_link, group_name) VALUES ($1, $2, $3)',
-                [section, groupLink, groupName]
+                'INSERT INTO whatsapp_groups (section, batch, group_link, group_name) VALUES ($1, $2, $3, $4)',
+                [section, batch, groupLink, groupName]
             );
         } else {
             await executeQuery(
-                'INSERT INTO whatsapp_groups (section, group_link, group_name) VALUES (?, ?, ?)',
-                [section, groupLink, groupName]
+                'INSERT INTO whatsapp_groups (section, batch, group_link, group_name) VALUES (?, ?, ?, ?)',
+                [section, batch, groupLink, groupName]
             );
         }
 
@@ -1744,7 +1977,7 @@ app.post('/api/whatsapp-groups', async (req, res) => {
         console.error('Add group error:', error);
         if (error.code === 'ER_DUP_ENTRY' || error.code === '23505') {
             res.json({ 
-                message: 'This group link already exists for this section',
+                message: 'This group link already exists for this section and batch',
                 duplicate: true 
             });
         } else {
