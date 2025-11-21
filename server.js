@@ -223,16 +223,6 @@ async function initializeDatabase() {
                 console.log('Batch auto-population skipped:', e.message);
             }
             
-            // Migrate whatsapp_groups table to add semester column if it doesn't exist
-            try {
-                await executeQuery(`
-                    ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS semester VARCHAR(10)
-                `);
-                console.log('✅ Added semester column to whatsapp_groups');
-            } catch (e) {
-                console.log('Column semester in whatsapp_groups already exists or other issue:', e.message);
-            }
-            
             await executeQuery(`
                 CREATE TABLE IF NOT EXISTS swap_requests (
                     id SERIAL PRIMARY KEY,
@@ -269,6 +259,26 @@ async function initializeDatabase() {
                     UNIQUE(section, batch, semester, group_link)
                 )
             `);
+            
+            // Migrate whatsapp_groups table to add batch column if it doesn't exist
+            try {
+                await executeQuery(`
+                    ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS batch VARCHAR(10)
+                `);
+                console.log('✅ Added batch column to whatsapp_groups');
+            } catch (e) {
+                console.log('Column batch in whatsapp_groups already exists or other issue:', e.message);
+            }
+            
+            // Migrate whatsapp_groups table to add semester column if it doesn't exist
+            try {
+                await executeQuery(`
+                    ALTER TABLE whatsapp_groups ADD COLUMN IF NOT EXISTS semester VARCHAR(10)
+                `);
+                console.log('✅ Added semester column to whatsapp_groups');
+            } catch (e) {
+                console.log('Column semester in whatsapp_groups already exists or other issue:', e.message);
+            }
             
             await executeQuery(`
                 CREATE TABLE IF NOT EXISTS feedback (
@@ -351,18 +361,6 @@ async function initializeDatabase() {
                     console.log('Batch auto-population skipped:', e.message);
                 }
                 
-                // Migrate whatsapp_groups table to add semester column if it doesn't exist
-                try {
-                    await connection.execute(`
-                        ALTER TABLE whatsapp_groups ADD COLUMN semester VARCHAR(10)
-                    `);
-                    console.log('✅ Added semester column to whatsapp_groups');
-                } catch (e) {
-                    if (!e.message.includes('Duplicate column')) {
-                        console.log('Column semester in whatsapp_groups already exists or other issue:', e.message);
-                    }
-                }
-                
                 await connection.execute(`
                     CREATE TABLE IF NOT EXISTS swap_requests (
                         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -402,6 +400,30 @@ async function initializeDatabase() {
                         UNIQUE KEY unique_section_batch_semester_link (section, batch, semester, group_link(255))
                     )
                 `);
+                
+                // Migrate whatsapp_groups table to add batch column if it doesn't exist
+                try {
+                    await connection.execute(`
+                        ALTER TABLE whatsapp_groups ADD COLUMN batch VARCHAR(10)
+                    `);
+                    console.log('✅ Added batch column to whatsapp_groups');
+                } catch (e) {
+                    if (!e.message.includes('Duplicate column')) {
+                        console.log('Column batch in whatsapp_groups already exists or other issue:', e.message);
+                    }
+                }
+                
+                // Migrate whatsapp_groups table to add semester column if it doesn't exist
+                try {
+                    await connection.execute(`
+                        ALTER TABLE whatsapp_groups ADD COLUMN semester VARCHAR(10)
+                    `);
+                    console.log('✅ Added semester column to whatsapp_groups');
+                } catch (e) {
+                    if (!e.message.includes('Duplicate column')) {
+                        console.log('Column semester in whatsapp_groups already exists or other issue:', e.message);
+                    }
+                }
                 
                 await connection.execute(`
                     CREATE TABLE IF NOT EXISTS feedback (
