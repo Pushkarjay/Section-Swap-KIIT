@@ -280,6 +280,25 @@ async function initializeDatabase() {
                 console.log('Column semester in whatsapp_groups already exists or other issue:', e.message);
             }
             
+            // Auto-populate batch and semester for existing WhatsApp groups without them
+            try {
+                const [groupsWithoutBatch] = await executeQuery(`
+                    SELECT id FROM whatsapp_groups WHERE batch IS NULL OR semester IS NULL
+                `);
+                
+                if (groupsWithoutBatch.length > 0) {
+                    await executeQuery(`
+                        UPDATE whatsapp_groups 
+                        SET batch = $1, semester = $2 
+                        WHERE batch IS NULL OR semester IS NULL
+                    `, ['2022-26', '8th sem']);
+                    
+                    console.log(`✅ Auto-populated batch and semester for ${groupsWithoutBatch.length} existing WhatsApp groups (2022-26, 8th sem)`);
+                }
+            } catch (e) {
+                console.log('WhatsApp groups batch/semester auto-population skipped:', e.message);
+            }
+            
             await executeQuery(`
                 CREATE TABLE IF NOT EXISTS feedback (
                     id SERIAL PRIMARY KEY,
@@ -423,6 +442,25 @@ async function initializeDatabase() {
                     if (!e.message.includes('Duplicate column')) {
                         console.log('Column semester in whatsapp_groups already exists or other issue:', e.message);
                     }
+                }
+                
+                // Auto-populate batch and semester for existing WhatsApp groups without them
+                try {
+                    const [groupsWithoutBatch] = await connection.execute(`
+                        SELECT id FROM whatsapp_groups WHERE batch IS NULL OR semester IS NULL
+                    `);
+                    
+                    if (groupsWithoutBatch.length > 0) {
+                        await connection.execute(`
+                            UPDATE whatsapp_groups 
+                            SET batch = ?, semester = ? 
+                            WHERE batch IS NULL OR semester IS NULL
+                        `, ['2022-26', '8th sem']);
+                        
+                        console.log(`✅ Auto-populated batch and semester for ${groupsWithoutBatch.length} existing WhatsApp groups (2022-26, 8th sem)`);
+                    }
+                } catch (e) {
+                    console.log('WhatsApp groups batch/semester auto-population skipped:', e.message);
                 }
                 
                 await connection.execute(`
